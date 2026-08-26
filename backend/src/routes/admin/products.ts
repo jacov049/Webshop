@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
-import { Router } from "express";
+import express, { Router } from "express";
 import { z } from "zod";
 import sharp from "sharp";
 import { pool } from "../../db/pool.ts";
@@ -12,6 +12,11 @@ import { asyncHandler } from "../../lib/asyncHandler.ts";
 
 export const adminProductsRouter = Router();
 adminProductsRouter.use(requireAdmin);
+
+// Bilder kommen als Data-URL im JSON-Body; hier gezielt ein größeres
+// Limit als das globale 64kb (siehe index.ts). Gilt nur für diese bereits
+// authentifizierte Route.
+const uploadJson = express.json({ limit: "16mb" });
 
 const UPLOAD_DIR = path.resolve("uploads/products");
 await mkdir(UPLOAD_DIR, { recursive: true });
@@ -53,6 +58,7 @@ adminProductsRouter.get(
 
 adminProductsRouter.post(
   "/",
+  uploadJson,
   requireCsrf,
   asyncHandler(async (req, res) => {
     const parsed = productSchema.safeParse(req.body);
@@ -80,6 +86,7 @@ adminProductsRouter.post(
 
 adminProductsRouter.put(
   "/:id",
+  uploadJson,
   requireCsrf,
   asyncHandler(async (req, res) => {
     const parsed = productSchema.partial().safeParse(req.body);
@@ -96,7 +103,10 @@ adminProductsRouter.put(
       try {
         imagePath = await storeImage(data.imageDataUrl);
         const oldPath = existing.rows[0].image_path as string | null;
-        if (oldPath) await unlink(path.resolve("." + oldPath)).catch(() => {});
+        // Nur den Dateinamen verwenden und fest im Upload-Verzeichnis
+        // auflösen, damit ein manipulierter DB-Wert nie außerhalb davon
+        // löschen kann.
+        if (oldPath) await unlink(path.join(UPLOAD_DIR, path.basename(oldPath))).catch(() => {});
       } catch (err) {
         logger.warn({ err }, "Bild-Upload fehlgeschlagen");
         return res.status(400).json({ error: "Bild konnte nicht verarbeitet werden." });

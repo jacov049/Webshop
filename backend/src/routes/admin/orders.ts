@@ -5,6 +5,7 @@ import { requireAdmin } from "../../middleware/auth.ts";
 import { requireCsrf } from "../../middleware/csrf.ts";
 import { decryptAtRest } from "../../services/crypto/atRest.ts";
 import { asyncHandler } from "../../lib/asyncHandler.ts";
+import { releaseStockForOrder } from "../../services/stock.ts";
 
 export const adminOrdersRouter = Router();
 adminOrdersRouter.use(requireAdmin);
@@ -53,6 +54,13 @@ adminOrdersRouter.patch(
       req.params.id
     ]);
     if (result.rowCount === 0) return res.status(404).json({ error: "Bestellung nicht gefunden." });
+
+    // Bei Storno/Ablauf reservierten Lagerbestand zurückbuchen
+    // (idempotent über orders.stock_released).
+    if (parsed.data.status === "cancelled" || parsed.data.status === "expired") {
+      await releaseStockForOrder(req.params.id as string);
+    }
+
     res.json({ ok: true });
   })
 );

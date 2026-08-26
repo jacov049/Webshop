@@ -11,6 +11,7 @@
 			<a href="/zahlungen">Zahlungsmonitor</a>
 			<a href="/artikel">Artikel</a>
 			<a href="/kontakt">Kontaktanfragen</a>
+			<a href="/einstellungen">Einstellungen</a>
 		</nav>
 		<div class="row right">
 			<KeyUnlock />

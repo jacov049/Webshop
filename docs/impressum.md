@@ -1,7 +1,9 @@
 # Impressum — Vorlage
 
-> Diese Datei ist eine Arbeitsvorlage für den Betreiber. Der tatsächliche
-> Text wird in `frontend/src/routes/impressum/+page.svelte` ausgeliefert.
+> Arbeitsvorlage für den Betreiber. Der tatsächlich ausgelieferte Text
+> wird im **Admin-Panel unter "Einstellungen"** gepflegt und in der
+> Datenbank gespeichert; die Startwerte stehen in
+> `backend/src/lib/siteSettings.ts`.
 > Vor dem Live-Betrieb: Platzhalter ausfüllen, Inhalt ggf. juristisch prüfen
 > lassen (kein Rechtsrat, nur strukturelle Vorlage).
 

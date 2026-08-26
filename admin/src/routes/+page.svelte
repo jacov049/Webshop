@@ -16,6 +16,10 @@
 		<h3>Kontaktanfragen</h3>
 		<p class="muted">Offene Anfragen, lokale Entschlüsselung</p>
 	</a>
+	<a class="card" href="/einstellungen">
+		<h3>Einstellungen</h3>
+		<p class="muted">Shopname, Impressum, Datenschutz, Widerruf</p>
+	</a>
 </div>
 
 <style>

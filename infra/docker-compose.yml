@@ -2,10 +2,10 @@
 # Aufruf aus dem Repo-Root: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
 #
 # Domain-Modell (siehe infra/Caddyfile):
-#   ${SHOP_DOMAIN}  -> Kunden-Shop (frontend) + Backend-API unter /api, /admin
-#   ${ADMIN_DOMAIN} -> statisches Admin-Panel-Bundle (admin), spricht die
-#                       Backend-API auf ${SHOP_DOMAIN} cross-origin an
-#                       (CORS_ORIGIN in .env entsprechend setzen)
+#   ${SHOP_DOMAIN}  -> Kunden-Shop (frontend) + öffentliche API unter /api
+#   ${ADMIN_DOMAIN} -> statisches Admin-Panel-Bundle (admin) + Admin-API
+#                       unter /admin und /api auf DERSELBEN Domain
+#                       (same-origin: SameSite=Strict-Cookies, kein CORS)
 
 services:
   db:
@@ -40,10 +40,15 @@ services:
     build:
       context: ../frontend
       args:
-        # Produktion: leer -> relative Requests, da Caddy /api/* auf denselben
+        # Leer = relative Requests im Browser, da Caddy /api/* auf denselben
         # Origin proxied (siehe infra/Caddyfile).
         PUBLIC_API_BASE_URL: ""
     restart: unless-stopped
+    environment:
+      # Server-seitiges Rendering ruft die API direkt im internen
+      # Docker-Netz auf – ohne Umweg über die öffentliche Domain
+      # (spart einen Hop und funktioniert ohne DNS-Hairpin).
+      API_INTERNAL_URL: http://backend:3000
     depends_on: [backend]
     networks: [internal]
 
@@ -54,9 +59,9 @@ services:
     build:
       context: ../admin
       args:
-        # Absolute Backend-URL, da das Admin-Panel auf einer eigenen
-        # (Sub-)Domain ausgeliefert wird (Cross-Origin-Zugriff auf die API).
-        PUBLIC_API_BASE_URL: ${ADMIN_PUBLIC_API_BASE_URL}
+        # Leer = relative Requests. Caddy proxied /admin/* und /api/* auf
+        # der Admin-Domain zum Backend (same-origin, siehe Caddyfile).
+        PUBLIC_API_BASE_URL: ""
     restart: "no"
     volumes:
       - admin_build:/out

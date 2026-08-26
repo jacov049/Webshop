@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { pool } from "../db/pool.ts";
-import { env } from "../lib/env.ts";
+import { ADMIN_COOKIE_NAME } from "../lib/env.ts";
 import { asyncHandler } from "../lib/asyncHandler.ts";
 
 declare module "express-serve-static-core" {
@@ -18,7 +18,7 @@ export { hashToken };
 
 /** Prüft die Admin-Session anhand des gehashten Session-Tokens (Cookie). */
 export const requireAdmin = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-  const token = req.cookies?.[env.ADMIN_COOKIE_NAME];
+  const token = req.cookies?.[ADMIN_COOKIE_NAME];
   if (!token) return res.status(401).json({ error: "Nicht angemeldet." });
 
   const tokenHash = hashToken(token);

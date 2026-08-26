@@ -1,8 +1,10 @@
 # Widerrufsbelehrung — Vorlage & offene Punkte
 
-> Arbeitsvorlage. Der ausgelieferte Text liegt in
-> `frontend/src/routes/widerruf/+page.svelte`. Muster nach
-> Art. 246a § 1 Abs. 2 EGBGB i.V.m. Anlage 1 zu Art. 246a EGBGB.
+> Arbeitsvorlage. Der tatsächlich ausgelieferte Text wird im
+> **Admin-Panel unter "Einstellungen"** gepflegt und in der Datenbank
+> gespeichert; die Startwerte stehen in
+> `backend/src/lib/siteSettings.ts`. Muster nach Art. 246a § 1 Abs. 2
+> EGBGB i.V.m. Anlage 1 zu Art. 246a EGBGB.
 
 ## Offene Punkte, die vor Live-Betrieb zu klären sind
 

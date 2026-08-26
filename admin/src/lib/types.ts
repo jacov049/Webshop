@@ -49,3 +49,18 @@ export interface ContactPayload {
 	orderNumber?: string;
 	messenger?: { type: 'signal' | 'threema'; id: string };
 }
+
+export type SettingType = 'text' | 'markdown';
+
+export interface SettingDefinition {
+	key: string;
+	label: string;
+	type: SettingType;
+	group: string;
+	hint?: string;
+}
+
+export interface SettingsResponse {
+	values: Record<string, string>;
+	definitions: SettingDefinition[];
+}

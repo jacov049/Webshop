@@ -1,4 +1,5 @@
-import { apiGet, apiPost, ApiError } from '$lib/api';
+import { apiGet, apiPost, ApiError, setUnauthorizedHandler } from '$lib/api';
+import { lockPrivateKey } from '$lib/decrypt/pgp.svelte';
 
 class AuthStore {
 	checked = $state(false);
@@ -26,8 +27,22 @@ class AuthStore {
 		} catch (err) {
 			if (!(err instanceof ApiError)) throw err;
 		}
+		this.endSession();
+	}
+
+	/**
+	 * Beendet die Sitzung lokal. Der entschlüsselte PGP-Schlüssel wird
+	 * dabei immer aus dem Speicher entfernt, damit er nach einem
+	 * Sitzungsende nicht im Tab liegen bleibt.
+	 */
+	endSession() {
 		this.authenticated = false;
+		lockPrivateKey();
 	}
 }
 
 export const auth = new AuthStore();
+
+// Läuft die Server-Sitzung ab, springt das Panel automatisch zurück
+// auf den Login-Bildschirm.
+setUnauthorizedHandler(() => auth.endSession());

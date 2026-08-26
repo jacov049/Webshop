@@ -1,6 +1,15 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import type { KitConfig } from '@sveltejs/kit';
 import { defineConfig } from 'vite';
+
+// Produktion: Admin-API liegt same-origin unter derselben Domain wie das
+// SPA (siehe infra/Caddyfile), 'self' genügt. Lokal zeigt
+// PUBLIC_API_BASE_URL auf den Backend-Dev-Server.
+const devApiOrigin = process.env.PUBLIC_API_BASE_URL?.trim();
+type CspSources = NonNullable<NonNullable<KitConfig['csp']>['directives']>['connect-src'];
+
+const connectSrc = ['self', ...(devApiOrigin ? [devApiOrigin] : [])] as CspSources;
 
 export default defineConfig({
 	plugins: [
@@ -26,7 +35,7 @@ export default defineConfig({
 					'script-src': ['self'],
 					'style-src': ['self', 'unsafe-inline'],
 					'img-src': ['self', 'data:'],
-					'connect-src': ['self', 'http://localhost:3000'],
+					'connect-src': connectSrc,
 					'object-src': ['none'],
 					'base-uri': ['none'],
 					'frame-ancestors': ['none'],

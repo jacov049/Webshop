@@ -1,6 +1,10 @@
+<script lang="ts">
+	let { note }: { note: string } = $props();
+</script>
+
 <footer class="site-footer">
 	<div class="container row">
-		<p class="muted">Zahlung ausschließlich mit Bitcoin &amp; Monero. Keine Tracker, keine Analytics.</p>
+		<p class="muted">{note}</p>
 		<nav>
 			<a href="/impressum">Impressum</a>
 			<a href="/datenschutz">Datenschutz</a>

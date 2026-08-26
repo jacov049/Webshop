@@ -32,7 +32,16 @@ docs/       Impressum/Datenschutz/Widerruf-Vorlagen, Verschlüsselungskonzept,
 - **Nur Kryptowährungen**: Bitcoin (on-chain, HD-Wallet, watch-only) und
   Monero (Subadressen über `monero-wallet-rpc`).
 - **Zwei getrennte Frontends**: öffentlicher Shop und Admin-Panel sind
-  separate Anwendungen mit unterschiedlichen Vertrauensgrenzen.
+  separate Anwendungen auf getrennten Domains. Die Admin-API liegt
+  same-origin bei der Admin-Domain – dadurch greifen `SameSite=Strict`-
+  Cookies, es wird kein CORS benötigt, und ein XSS im öffentlichen Shop
+  kann die Admin-API nicht mit Anmeldedaten aufrufen.
+- **Inhalte im Admin-Panel pflegbar**: Shopname, Startseiten- und
+  Kassentexte sowie Impressum, Datenschutz und Widerruf werden unter
+  „Einstellungen" bearbeitet und in der Datenbank gespeichert – kein
+  Redeploy nötig. Die Texte werden als Markdown gespeichert und mit einem
+  bewusst escapenden Renderer ausgegeben (kein HTML-Durchgriff, siehe
+  `frontend/src/lib/markdown.ts`).
 
 ## Lokale Entwicklung
 
@@ -90,21 +99,31 @@ Vor dem Live-Betrieb zwingend:
 
 1. Eigenes PGP-Schlüsselpaar erzeugen und `frontend/static/pgp-public-key.asc`
    ersetzen (siehe `docs/demo-keys/README.md`).
-2. `docs/impressum.md`, `docs/datenschutz.md`, `docs/widerruf.md` ausfüllen
-   und in die jeweiligen `+page.svelte`-Dateien in `frontend/src/routes/`
-   übertragen.
+2. Rechtstexte im Admin-Panel unter „Einstellungen" ausfüllen; die
+   Vorlagen mit Erläuterungen liegen in `docs/impressum.md`,
+   `docs/datenschutz.md` und `docs/widerruf.md`.
 3. `infra/Caddyfile`: E-Mail-Adresse für ACME anpassen.
 4. Einen Cronjob für `backend/scripts/delete-expired.ts` einrichten
    (löscht abgelaufene Bestellungen/Kontaktanfragen gemäß den in `.env`
-   konfigurierten Aufbewahrungsfristen).
+   konfigurierten Aufbewahrungsfristen und räumt abgelaufene
+   Admin-Sessions ab).
+5. `TRUST_PROXY_HOPS=1` setzen (hinter Caddy), damit das Rate-Limiting die
+   echte Client-IP unterscheidet. `CORS_ORIGINS` bleibt in dieser
+   Topologie leer.
 
 ## Sicherheits-Checkliste
 
 Siehe Konzept-Dokument (im ursprünglichen Auftrag), Abschnitt 8 — im Code
 umgesetzt u.a. als: strikte CSP ohne `unsafe-inline`-Skripte (SvelteKit-CSP
 mit Nonces, siehe `frontend/vite.config.ts` und `admin/vite.config.ts`),
-Argon2id + TOTP für Admin-Logins, In-Memory-Rate-Limiting auf
-`/api/checkout`, `/api/contact` und `/admin/auth/login`, CSRF-Schutz
-(Double-Submit-Cookie) auf allen zustandsändernden Endpoints, serverseitige
-Zod-Validierung aller Eingaben und ein kein-IP-Logging-Prinzip in
-Backend (`pino`) und Reverse Proxy (Caddy).
+Argon2id + TOTP für Admin-Logins (inkl. Drosselung pro Benutzername),
+In-Memory-Rate-Limiting auf `/api/checkout`, `/api/contact` und
+`/admin/auth/login`, CSRF-Schutz auf allen zustandsändernden Endpoints
+(Double-Submit-Cookie **und** Origin-Prüfung), serverseitige
+Zod-Validierung aller Eingaben, enge Body-Limits sowie ein
+kein-IP-Logging-Prinzip in Backend (`pino`) und Reverse Proxy (Caddy) –
+inklusive Maskierung der Bestell-Tokens in Log-Pfaden.
+
+Bestellungen reservieren beim Checkout Lagerbestand; läuft das
+Zahlungsfenster ab oder wird storniert, bucht der Zahlungs-Poller den
+Bestand automatisch und idempotent zurück (`orders.stock_released`).

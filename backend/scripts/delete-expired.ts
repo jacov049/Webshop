@@ -21,8 +21,15 @@ async function main() {
   const contacts = await pool.query(
     `DELETE FROM contact_requests WHERE deletion_due IS NOT NULL AND deletion_due < now()`
   );
+  // Abgelaufene Admin-Sessions sind wertlos und würden sonst unbegrenzt
+  // in der Tabelle liegen bleiben.
+  const sessions = await pool.query(`DELETE FROM admin_sessions WHERE expires_at < now()`);
   logger.info(
-    { deletedOrders: orders.rowCount, deletedContacts: contacts.rowCount },
+    {
+      deletedOrders: orders.rowCount,
+      deletedContacts: contacts.rowCount,
+      deletedSessions: sessions.rowCount
+    },
     "Löschjob abgeschlossen"
   );
   await pool.end();

@@ -1,5 +1,14 @@
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
+/**
+ * API-Client für den Browser.
+ *
+ * PUBLIC_API_BASE_URL ist in Produktion leer -> relative Requests auf
+ * denselben Origin, den Caddy zum Backend proxied. Für serverseitiges
+ * Rendering siehe api.server.ts (dort wird die interne Docker-Adresse
+ * verwendet, da relative URLs auf dem Server nicht auflösbar sind).
+ */
+
 let csrfToken: string | null = null;
 
 async function ensureCsrfToken(): Promise<string> {
@@ -26,7 +35,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 	return (await res.json()) as T;
 }
 
-/** POST mit automatischem CSRF-Double-Submit-Token (siehe backend/src/middleware/csrf.ts). */
+/** POST mit automatischem CSRF-Double-Submit-Token. */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 	const token = await ensureCsrfToken();
 	const res = await fetch(`${PUBLIC_API_BASE_URL}${path}`, {

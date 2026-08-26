@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { encryptForOperator } from '$lib/crypto/pgp';
 	import { apiPost } from '$lib/api';
+	import Markdown from '$lib/components/Markdown.svelte';
+	import type { SiteSettings } from '$lib/settings';
+
+	let { data }: { data: { settings: SiteSettings } } = $props();
 
 	let message = $state('');
 	let orderNumber = $state('');
@@ -37,12 +41,9 @@
 
 <h1>Kontakt</h1>
 
-<p class="muted">
-	Deine Nachricht wird direkt in diesem Browser mit dem PGP-Schlüssel des Betreibers
-	verschlüsselt und ist nur für ihn lesbar. Es wird keine E-Mail-Adresse gespeichert – für eine
-	Rückmeldung gib bitte deine Threema- oder Signal-ID an. Die Antwort erfolgt privat über den
-	angegebenen Messenger, nicht über diese Website.
-</p>
+<div class="muted">
+	<Markdown source={data.settings.contact_intro_md} />
+</div>
 
 {#if sent}
 	<p class="card">Danke, deine Nachricht wurde verschlüsselt übermittelt.</p>

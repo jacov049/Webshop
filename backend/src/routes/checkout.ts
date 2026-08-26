@@ -9,7 +9,7 @@ import { asyncHandler } from "../lib/asyncHandler.ts";
 import { encryptAtRest } from "../services/crypto/atRest.ts";
 import { deriveBtcAddress } from "../services/payment/btc.ts";
 import { createXmrSubaddress } from "../services/payment/xmr.ts";
-import { eurToBtc, eurToXmr } from "../services/payment/rates.ts";
+import { eurToBtc, eurToXmr, RateUnavailableError } from "../services/payment/rates.ts";
 
 export const checkoutRouter = Router();
 
@@ -108,11 +108,23 @@ checkoutRouter.post(
         ]
       );
 
+      const order = insert.rows[0];
+      if (!order) throw new Error("Bestellung konnte nicht angelegt werden.");
+
+      // Positionen ohne Personenbezug festhalten, damit reservierter
+      // Lagerbestand bei Ablauf/Storno automatisch zurückgebucht werden
+      // kann (siehe services/payment/poller.ts).
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO order_items (order_id, product_id, quantity) VALUES ($1,$2,$3)`,
+          [order.id, item.productId, item.quantity]
+        );
+      }
+
       await client.query("COMMIT");
 
-      const order = insert.rows[0];
       res.status(201).json({
-        orderToken: order?.order_token,
+        orderToken: order.order_token,
         paymentAddress,
         amountCrypto,
         amountEur,
@@ -123,6 +135,12 @@ checkoutRouter.post(
       await client.query("ROLLBACK");
       if (err instanceof HttpError) {
         return res.status(err.status).json({ error: err.message });
+      }
+      if (err instanceof RateUnavailableError) {
+        logger.error({ err }, "Kursquelle nicht erreichbar – Checkout abgebrochen");
+        return res.status(503).json({
+          error: "Die Wechselkurse sind derzeit nicht abrufbar. Bitte später erneut versuchen."
+        });
       }
       logger.error({ err }, "Checkout fehlgeschlagen");
       res.status(500).json({ error: "Bestellung konnte nicht angelegt werden." });

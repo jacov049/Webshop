@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { cart } from '$lib/stores/cart.svelte';
+
+	let { shopName }: { shopName: string } = $props();
 </script>
 
 <header class="site-header">
 	<div class="container row">
-		<a class="brand" href="/">CryptoShop</a>
+		<a class="brand" href="/">{shopName}</a>
 		<nav>
 			<a href="/">Artikel</a>
 			<a href="/kontakt">Kontakt</a>

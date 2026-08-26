@@ -3,7 +3,11 @@
 	import { cart } from '$lib/stores/cart.svelte';
 	import { encryptForOperator } from '$lib/crypto/pgp';
 	import { apiPost } from '$lib/api';
+	import Markdown from '$lib/components/Markdown.svelte';
 	import type { CheckoutResponse, PaymentMethod } from '$lib/types';
+	import type { SiteSettings } from '$lib/settings';
+
+	let { data }: { data: { settings: SiteSettings } } = $props();
 
 	let name = $state('');
 	let street = $state('');
@@ -51,10 +55,9 @@
 {#if cart.items.length === 0}
 	<p class="muted">Dein Warenkorb ist leer.</p>
 {:else}
-	<p class="muted">
-		Deine Angaben werden direkt in diesem Browser mit dem PGP-Schlüssel des Betreibers
-		verschlüsselt, bevor sie überhaupt gesendet werden. Der Server kann sie nicht lesen.
-	</p>
+	<div class="muted">
+		<Markdown source={data.settings.checkout_notice_md} />
+	</div>
 
 	<form onsubmit={submit} class="stack">
 		<label>

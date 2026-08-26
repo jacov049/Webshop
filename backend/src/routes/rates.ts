@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eurToBtc, eurToXmr } from "../services/payment/rates.ts";
+import { eurToBtc, eurToXmr, RateUnavailableError } from "../services/payment/rates.ts";
 import { asyncHandler } from "../lib/asyncHandler.ts";
 
 export const ratesRouter = Router();
@@ -8,7 +8,14 @@ export const ratesRouter = Router();
 ratesRouter.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const [btc, xmr] = await Promise.all([eurToBtc(1), eurToXmr(1)]);
-    res.json({ btcPerEur: btc, xmrPerEur: xmr });
+    try {
+      const [btc, xmr] = await Promise.all([eurToBtc(1), eurToXmr(1)]);
+      res.json({ btcPerEur: btc, xmrPerEur: xmr });
+    } catch (err) {
+      if (err instanceof RateUnavailableError) {
+        return res.status(503).json({ error: "Kurse derzeit nicht verfügbar." });
+      }
+      throw err;
+    }
   })
 );
