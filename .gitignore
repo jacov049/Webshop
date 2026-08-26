@@ -1,0 +1,28 @@
+node_modules/
+
+# Env-Dateien mit Secrets
+.env
+.env.*
+!.env.example
+
+# Build-Output
+dist/
+build/
+.svelte-kit/
+
+# Backend-Uploads (nutzergenerierte Artikelbilder, lokal/Volume)
+backend/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Hinweis: docs/demo-keys/DEMO-private-key.asc ist ABSICHTLICH NICHT
+# ignoriert – ein Wegwerf-Schlüsselpaar ohne echten Personenbezug, das nur
+# zum lokalen Testen des Verschlüsselungsflows dient (siehe
+# docs/demo-keys/README.md). Niemals ein echtes/produktives Schlüsselpaar
+# hier ablegen.

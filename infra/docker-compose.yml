@@ -1,0 +1,90 @@
+# CryptoShop — Beispiel-Deployment für einen gehärteten Single-VPS.
+# Aufruf aus dem Repo-Root: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+#
+# Domain-Modell (siehe infra/Caddyfile):
+#   ${SHOP_DOMAIN}  -> Kunden-Shop (frontend) + Backend-API unter /api, /admin
+#   ${ADMIN_DOMAIN} -> statisches Admin-Panel-Bundle (admin), spricht die
+#                       Backend-API auf ${SHOP_DOMAIN} cross-origin an
+#                       (CORS_ORIGIN in .env entsprechend setzen)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  backend:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file: ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
+    networks: [internal]
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        # Produktion: leer -> relative Requests, da Caddy /api/* auf denselben
+        # Origin proxied (siehe infra/Caddyfile).
+        PUBLIC_API_BASE_URL: ""
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [internal]
+
+  # Einmaliger Build-Container: kompiliert das Admin-SPA-Bundle und legt es
+  # im Volume admin_build ab, das Caddy read-only mountet. Läuft bei jedem
+  # "docker compose up --build" erneut und beendet sich danach selbst.
+  admin-build:
+    build:
+      context: ../admin
+      args:
+        # Absolute Backend-URL, da das Admin-Panel auf einer eigenen
+        # (Sub-)Domain ausgeliefert wird (Cross-Origin-Zugriff auf die API).
+        PUBLIC_API_BASE_URL: ${ADMIN_PUBLIC_API_BASE_URL}
+    restart: "no"
+    volumes:
+      - admin_build:/out
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SHOP_DOMAIN: ${SHOP_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - admin_build:/srv/admin:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend, backend, admin-build]
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  pg_data:
+  backend_uploads:
+  admin_build:
+  caddy_data:
+  caddy_config:
