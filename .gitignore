@@ -17,6 +17,9 @@ backend/uploads/
 .DS_Store
 Thumbs.db
 
+# Screenshots aus lokalen Demo-Läufen
+.screenshots/
+
 # Logs
 *.log
 npm-debug.log*

@@ -43,6 +43,7 @@
 			<label>
 				Passphrase
 				<input type="password" bind:value={passphrase} />
+				<span class="muted hint">Leer lassen, falls der Schlüssel keine Passphrase hat.</span>
 			</label>
 			{#if error}
 				<p class="error-text">{error}</p>
@@ -65,5 +66,9 @@
 
 	.unlock-form {
 		min-width: 280px;
+	}
+
+	.hint {
+		font-size: 0.78rem;
 	}
 </style>

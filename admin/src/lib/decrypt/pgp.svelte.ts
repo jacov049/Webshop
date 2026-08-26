@@ -20,7 +20,19 @@ export const keySession = new KeySessionStore();
 
 export async function unlockPrivateKey(armoredKey: string, passphrase: string): Promise<void> {
 	const key = await openpgp.readPrivateKey({ armoredKey });
-	decryptedKey = await openpgp.decryptKey({ privateKey: key, passphrase });
+
+	// Ein Schlüssel ohne Passphrase-Schutz liegt bereits entschlüsselt vor;
+	// openpgp.decryptKey() würde darauf mit "Key packet is already
+	// decrypted" fehlschlagen. Solche Schlüssel werden direkt übernommen
+	// (nicht empfohlen, siehe docs/verschluesselung.md – aber das Panel
+	// darf daran nicht scheitern).
+	if (key.isDecrypted()) {
+		decryptedKey = key;
+	} else {
+		if (!passphrase) throw new Error('Dieser Schlüssel ist passphrasegeschützt.');
+		decryptedKey = await openpgp.decryptKey({ privateKey: key, passphrase });
+	}
+
 	keySession.unlocked = true;
 }
 
