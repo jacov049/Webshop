@@ -34,8 +34,17 @@ const schema = z.object({
   XMR_WALLET_RPC_URL: z.string().default("http://127.0.0.1:18083/json_rpc"),
   XMR_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(10),
   PAYMENT_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
-  ORDER_RETENTION_YEARS: z.coerce.number().int().positive().default(10),
-  CONTACT_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  // Aufbewahrungsfrist für ALLE kundenbezogenen Daten (Bestellungen inkl.
+  // Positionen, Kontaktanfragen). Nach Ablauf werden die Datensätze
+  // automatisch und unwiderruflich gelöscht.
+  //
+  // ACHTUNG (Rechtslage DE): § 147 AO und § 257 HGB verlangen für
+  // Rechnungs- und Buchungsbelege eine Aufbewahrung von 10 Jahren. Der
+  // hier gesetzte Standard von 14 Tagen ist bewusst datensparsam und
+  // eignet sich für ein Demo-/Ausbildungssystem ohne echte Umsätze. Für
+  // einen produktiven Warenverkauf ist stattdessen 3650 (10 Jahre) zu
+  // setzen – siehe docs/datenschutz.md.
+  DATA_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   PGP_PUBLIC_KEY_FINGERPRINT: z.string().optional()
 });
 

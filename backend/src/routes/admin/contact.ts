@@ -37,10 +37,15 @@ adminContactRouter.patch(
   asyncHandler(async (req, res) => {
     const parsed = statusSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Ungültiger Status." });
-    // Bei "answered": kurze Nachfrist statt sofortiger Löschung (Konzept Abschnitt 9)
+    // Bei "answered": kurze Nachfrist statt sofortiger Löschung (Konzept
+    // Abschnitt 9). LEAST() stellt sicher, dass die Nachfrist die
+    // reguläre Aufbewahrungsfrist nie verlängert, sondern nur verkürzt.
     const deletionDue = parsed.data.status === "answered" ? new Date(Date.now() + 7 * 86_400_000) : null;
     const result = await pool.query(
-      `UPDATE contact_requests SET status = $1, deletion_due = COALESCE($2, deletion_due) WHERE id = $3`,
+      `UPDATE contact_requests
+          SET status = $1,
+              deletion_due = LEAST(COALESCE($2::timestamptz, deletion_due), deletion_due)
+        WHERE id = $3`,
       [parsed.data.status, deletionDue, req.params.id]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: "Anfrage nicht gefunden." });

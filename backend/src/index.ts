@@ -18,6 +18,7 @@ import { adminOrdersRouter } from "./routes/admin/orders.ts";
 import { adminContactRouter } from "./routes/admin/contact.ts";
 import { adminSettingsRouter } from "./routes/admin/settings.ts";
 import { startPaymentPoller } from "./services/payment/poller.ts";
+import { startRetentionScheduler } from "./services/retention.ts";
 
 // Letztes Sicherheitsnetz: alle Route-Handler und Middleware sind über
 // asyncHandler() abgesichert (siehe lib/asyncHandler.ts), diese Hooks
@@ -164,4 +165,5 @@ app.listen(env.PORT, () => {
     "CryptoShop Backend gestartet"
   );
   startPaymentPoller();
+  startRetentionScheduler();
 });

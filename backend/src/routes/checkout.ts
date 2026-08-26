@@ -7,6 +7,7 @@ import { requireCsrf } from "../middleware/csrf.ts";
 import { rateLimit } from "../middleware/rateLimit.ts";
 import { asyncHandler } from "../lib/asyncHandler.ts";
 import { encryptAtRest } from "../services/crypto/atRest.ts";
+import { deletionDueFromNow } from "../services/retention.ts";
 import { deriveBtcAddress } from "../services/payment/btc.ts";
 import { createXmrSubaddress } from "../services/payment/xmr.ts";
 import { eurToBtc, eurToXmr, RateUnavailableError } from "../services/payment/rates.ts";
@@ -86,8 +87,7 @@ checkoutRouter.post(
       }
 
       const expiresAt = new Date(Date.now() + env.PAYMENT_WINDOW_MINUTES * 60_000);
-      const deletionDue = new Date(Date.now());
-      deletionDue.setFullYear(deletionDue.getFullYear() + env.ORDER_RETENTION_YEARS);
+      const deletionDue = deletionDueFromNow();
 
       const insert = await client.query<{ id: string; order_token: string }>(
         `INSERT INTO orders

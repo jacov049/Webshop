@@ -26,6 +26,11 @@ docs/       Impressum/Datenschutz/Widerruf-Vorlagen, Verschlüsselungskonzept,
 
 - **Privacy by Design & by Default**: keine Analytics, keine
   Drittanbieter-Ressourcen, keine IP-Logs.
+- **Automatische Löschung**: alle kundenbezogenen Daten (Bestellungen
+  inkl. Positionen, Kontaktanfragen) werden nach `DATA_RETENTION_DAYS`
+  – standardmäßig **14 Tagen** – unwiderruflich gelöscht. Der Löschlauf
+  läuft alle 6 Stunden im Backend-Prozess, ein externer Cronjob ist
+  nicht erforderlich.
 - **Ende-zu-Ende-Verschlüsselung**: Bestell- und Kontaktdaten werden
   clientseitig mit dem PGP-Public-Key des Betreibers verschlüsselt, bevor
   sie das Backend erreichen. Der Server sieht sie nie im Klartext.
@@ -103,10 +108,10 @@ Vor dem Live-Betrieb zwingend:
    Vorlagen mit Erläuterungen liegen in `docs/impressum.md`,
    `docs/datenschutz.md` und `docs/widerruf.md`.
 3. `infra/Caddyfile`: E-Mail-Adresse für ACME anpassen.
-4. Einen Cronjob für `backend/scripts/delete-expired.ts` einrichten
-   (löscht abgelaufene Bestellungen/Kontaktanfragen gemäß den in `.env`
-   konfigurierten Aufbewahrungsfristen und räumt abgelaufene
-   Admin-Sessions ab).
+4. `DATA_RETENTION_DAYS` prüfen. Standard sind **14 Tage** – siehe den
+   Hinweis zur Aufbewahrungspflicht unten. Ein Cronjob ist nicht nötig,
+   der Löschlauf ist im Backend eingebaut; `npm run delete-expired`
+   stößt ihn bei Bedarf manuell an.
 5. `TRUST_PROXY_HOPS=1` setzen (hinter Caddy), damit das Rate-Limiting die
    echte Client-IP unterscheidet. `CORS_ORIGINS` bleibt in dieser
    Topologie leer.
@@ -127,3 +132,14 @@ inklusive Maskierung der Bestell-Tokens in Log-Pfaden.
 Bestellungen reservieren beim Checkout Lagerbestand; läuft das
 Zahlungsfenster ab oder wird storniert, bucht der Zahlungs-Poller den
 Bestand automatisch und idempotent zurück (`orders.stock_released`).
+
+## Aufbewahrungsfrist — rechtlicher Hinweis
+
+Der Standard von **14 Tagen** (`DATA_RETENTION_DAYS`) ist maximal
+datensparsam, steht aber im Widerspruch zu § 147 Abs. 3 AO und
+§ 257 Abs. 4 HGB, die für Rechnungs- und Buchungsbelege **10 Jahre**
+Aufbewahrung verlangen. Für ein Demo-/Ausbildungssystem ohne echte
+Umsätze ist das unkritisch; vor einem produktiven Warenverkauf ist
+`DATA_RETENTION_DAYS=3650` zu setzen oder eine reduzierte Rechnungskopie
+außerhalb des Shops zu archivieren. Die Abwägung ist in
+[`docs/datenschutz.md`](docs/datenschutz.md) ausführlich dokumentiert.

@@ -133,8 +133,11 @@ gespeichert oder geloggt.
 Name, Lieferadresse und Bestellinhalt werden vor dem Absenden direkt in deinem Browser
 mit einem PGP-Schlüssel verschlüsselt, der ausschließlich dem Betreiber gehört. Der
 Server speichert nur den verschlüsselten Blob und kann ihn technisch nicht lesen.
-Aufbewahrung: 10 Jahre gemäß § 147 AO (steuerrechtliche Aufbewahrungspflicht für
-Rechnungsdaten), danach automatisierte Löschung.
+
+Alle Bestelldaten werden **14 Tage** nach der Bestellung automatisch und
+unwiderruflich gelöscht. Bitte notiere dir deinen Bestell-Link, solange du ihn
+brauchst – nach Ablauf der Frist ist die Bestellung auch für uns nicht mehr
+einsehbar.
 
 Zur Lagerverwaltung wird zusätzlich unverschlüsselt gespeichert, welche Artikel in
 welcher Menge zu einer Bestellung gehören. Diese Angaben enthalten keinen Personenbezug.
@@ -151,7 +154,8 @@ Zahlungsadresse.
 
 Nachrichten über das Kontaktformular werden ebenfalls clientseitig PGP-verschlüsselt.
 Eine optional angegebene Threema-/Signal-ID dient ausschließlich der Rückmeldung durch
-den Betreiber und wird nach Bearbeitung zeitnah gelöscht.
+den Betreiber. Kontaktanfragen werden spätestens nach 14 Tagen gelöscht, nach
+Beantwortung bereits nach einer kurzen Nachfrist von 7 Tagen.
 
 ## Cookies
 

@@ -2,11 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db/pool.ts";
 import { logger } from "../lib/logger.ts";
-import { env } from "../lib/env.ts";
 import { requireCsrf } from "../middleware/csrf.ts";
 import { rateLimit } from "../middleware/rateLimit.ts";
 import { asyncHandler } from "../lib/asyncHandler.ts";
 import { encryptAtRest } from "../services/crypto/atRest.ts";
+import { deletionDueFromNow } from "../services/retention.ts";
 
 export const contactRouter = Router();
 
@@ -29,7 +29,7 @@ contactRouter.post(
       return res.status(400).json({ error: "Ungültige Anfrage.", details: parsed.error.flatten() });
     }
 
-    const deletionDue = new Date(Date.now() + env.CONTACT_RETENTION_DAYS * 86_400_000);
+    const deletionDue = deletionDueFromNow();
 
     try {
       await pool.query(
