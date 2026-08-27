@@ -1,11 +1,5 @@
 # CryptoShop — Beispiel-Deployment für einen gehärteten Single-VPS.
 # Aufruf aus dem Repo-Root: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
-#
-# Domain-Modell (siehe infra/Caddyfile):
-#   ${SHOP_DOMAIN}  -> Kunden-Shop (frontend) + öffentliche API unter /api
-#   ${ADMIN_DOMAIN} -> statisches Admin-Panel-Bundle (admin) + Admin-API
-#                       unter /admin und /api auf DERSELBEN Domain
-#                       (same-origin: SameSite=Strict-Cookies, kein CORS)
 
 services:
   db:
@@ -40,27 +34,20 @@ services:
     build:
       context: ../frontend
       args:
-        # Leer = relative Requests im Browser, da Caddy /api/* auf denselben
-        # Origin proxied (siehe infra/Caddyfile).
         PUBLIC_API_BASE_URL: ""
     restart: unless-stopped
     environment:
-      # Server-seitiges Rendering ruft die API direkt im internen
-      # Docker-Netz auf – ohne Umweg über die öffentliche Domain
-      # (spart einen Hop und funktioniert ohne DNS-Hairpin).
       API_INTERNAL_URL: http://backend:3000
+      # Runtime-Pin für frontend/src/lib/crypto/pgp.ts. Muss dem tatsächlich
+      # ausgelieferten frontend/static/pgp-public-key.asc entsprechen.
+      PUBLIC_PGP_PUBLIC_KEY_FINGERPRINT: ${PGP_PUBLIC_KEY_FINGERPRINT}
     depends_on: [backend]
     networks: [internal]
 
-  # Einmaliger Build-Container: kompiliert das Admin-SPA-Bundle und legt es
-  # im Volume admin_build ab, das Caddy read-only mountet. Läuft bei jedem
-  # "docker compose up --build" erneut und beendet sich danach selbst.
   admin-build:
     build:
       context: ../admin
       args:
-        # Leer = relative Requests. Caddy proxied /admin/* und /api/* auf
-        # der Admin-Domain zum Backend (same-origin, siehe Caddyfile).
         PUBLIC_API_BASE_URL: ""
     restart: "no"
     volumes:

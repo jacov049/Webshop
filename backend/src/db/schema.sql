@@ -37,23 +37,25 @@ CREATE TABLE IF NOT EXISTS orders (
         CHECK (status IN ('pending','confirming','paid','expired','shipped','cancelled')),
     confirmations INTEGER NOT NULL DEFAULT 0,
     required_confirmations INTEGER NOT NULL DEFAULT 1,
-    -- Merkt, ob der reservierte Lagerbestand bereits zurückgebucht wurde
-    -- (bei Ablauf/Storno), damit das nicht doppelt passiert.
     stock_released BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,
-    deletion_due TIMESTAMPTZ
+    deletion_due TIMESTAMPTZ,
+    -- Zeitpunkt der letzten ERFOLGREICHEN Wallet-/Blockchain-Prüfung.
+    -- Eine Bestellung läuft nur ab, wenn nach Ende des Zahlungsfensters
+    -- mindestens eine solche Prüfung stattgefunden hat.
+    last_payment_check_at TIMESTAMPTZ
 );
+
+-- Für bestehende Installationen, deren orders-Tabelle bereits vor dieser
+-- Spalte angelegt wurde. Die Migration bleibt dadurch idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS last_payment_check_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_deletion_due ON orders(deletion_due);
 
 -- Bestellpositionen: enthalten bewusst KEINE personenbezogenen Daten
--- (nur Artikel-ID + Menge). Notwendig für die Lagerverwaltung, damit
--- reservierter Bestand bei abgelaufenen/stornierten Bestellungen
--- automatisch zurückgebucht werden kann. Wer bestellt hat, steht
--- ausschließlich im verschlüsselten Payload.
 CREATE TABLE IF NOT EXISTS order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -74,7 +76,9 @@ CREATE TABLE IF NOT EXISTS contact_requests (
 
 CREATE INDEX IF NOT EXISTS idx_contact_deletion_due ON contact_requests(deletion_due);
 
--- Admin-Zugänge
+-- Admin-Zugänge. totp_secret enthält ausschließlich AES-GCM-verschlüsselte
+-- Werte; bestehende Klartextwerte werden beim nächsten erfolgreichen Login
+-- automatisch migriert.
 CREATE TABLE IF NOT EXISTS admin_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username TEXT UNIQUE NOT NULL,
@@ -94,9 +98,7 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
 
--- Redaktionell im Admin-Panel pflegbare Website-Inhalte (Shopname,
--- Impressum, Datenschutz, Widerruf, ...). Enthält ausschließlich vom
--- Betreiber selbst gesetzte, öffentliche Inhalte – keine Kundendaten.
+-- Redaktionell im Admin-Panel pflegbare Website-Inhalte
 CREATE TABLE IF NOT EXISTS site_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,

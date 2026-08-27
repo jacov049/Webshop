@@ -6,24 +6,18 @@ const csvToArray = (value: string) =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+const hexKey = (name: string) =>
+  z.string().regex(/^[0-9a-fA-F]{64}$/, `${name} muss ein 32-Byte-Hex-Key (64 Hex-Zeichen) sein`);
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL fehlt"),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET muss >= 32 Zeichen sein"),
-  AT_REST_KEY: z
-    .string()
-    .regex(/^[0-9a-fA-F]{64}$/, "AT_REST_KEY muss ein 32-Byte-Hex-Key (64 Hex-Zeichen) sein"),
-  // Anzahl der Reverse-Proxy-Hops vor der Anwendung. Hinter Caddy: 1.
-  // 0 = direkt exponiert (X-Forwarded-For wird dann NICHT ausgewertet,
-  // da sonst jeder Client seine Quell-IP fürs Rate-Limiting fälschen könnte).
+  AT_REST_KEY: hexKey("AT_REST_KEY"),
+  TOTP_ENCRYPTION_KEY: hexKey("TOTP_ENCRYPTION_KEY"),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
-  // Erlaubte Cross-Origin-Herkünfte (kommasepariert). Produktion: leer
-  // lassen – Shop, Admin-Panel und API laufen dann jeweils same-origin
-  // (siehe infra/Caddyfile), CORS wird nicht benötigt.
   CORS_ORIGINS: z.string().default("").transform(csvToArray),
-  // Kursquelle EUR -> BTC/XMR (öffentliche API, ohne Nutzerbezug).
-  // Austauschbar, z.B. gegen eine selbst gehostete Preisquelle.
   RATES_API_URL: z
     .string()
     .url()
@@ -33,21 +27,8 @@ const schema = z.object({
   BTC_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(2),
   XMR_WALLET_RPC_URL: z.string().default("http://127.0.0.1:18083/json_rpc"),
   XMR_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(10),
-  // Taktung der Zahlungsprüfung. Öffentliche Nodes/APIs haben teils enge
-  // Rate-Limits – hier ggf. hochsetzen, wenn viele offene Bestellungen
-  // gleichzeitig laufen.
   PAYMENT_POLL_INTERVAL_MS: z.coerce.number().int().min(1_000).default(30_000),
   PAYMENT_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
-  // Aufbewahrungsfrist für ALLE kundenbezogenen Daten (Bestellungen inkl.
-  // Positionen, Kontaktanfragen). Nach Ablauf werden die Datensätze
-  // automatisch und unwiderruflich gelöscht.
-  //
-  // ACHTUNG (Rechtslage DE): § 147 AO und § 257 HGB verlangen für
-  // Rechnungs- und Buchungsbelege eine Aufbewahrung von 10 Jahren. Der
-  // hier gesetzte Standard von 14 Tagen ist bewusst datensparsam und
-  // eignet sich für ein Demo-/Ausbildungssystem ohne echte Umsätze. Für
-  // einen produktiven Warenverkauf ist stattdessen 3650 (10 Jahre) zu
-  // setzen – siehe docs/datenschutz.md.
   DATA_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   PGP_PUBLIC_KEY_FINGERPRINT: z.string().optional()
 });
@@ -64,17 +45,8 @@ function loadEnv(): Env {
 }
 
 export const env = loadEnv();
-
 export const isProduction = env.NODE_ENV === "production";
 
-/**
- * Cookie-Optionen für Session-/CSRF-Cookies.
- *
- * In Produktion: Secure + "__Host-"-Präfix (bindet das Cookie an genau
- * diesen Origin, kein Domain-Attribut, Path=/). In der lokalen Entwicklung
- * über http:// wäre ein Secure-Cookie vom Browser abgelehnt worden –
- * deshalb dort ohne Secure und ohne "__Host-"-Präfix.
- */
 export const ADMIN_COOKIE_NAME = isProduction
   ? "__Host-cryptoshop_admin"
   : "cryptoshop_admin_dev";
