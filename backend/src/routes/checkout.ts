@@ -18,8 +18,8 @@ const PGP_MESSAGE_RE = /^-----BEGIN PGP MESSAGE-----[\s\S]+-----END PGP MESSAGE-
 
 const checkoutSchema = z.object({
   // Name/Adresse/Artikel sind bereits clientseitig mit dem PGP-Public-Key
-  // des Betreibers verschlüsselt worden (openpgp.js) – das Backend sieht
-  // hier nur einen undurchsichtigen, signierten Blob.
+  // des Betreibers verschlüsselt worden (openpgp.js). Der Blob ist
+  // verschlüsselt und integritätsgeschützt, aber nicht vom Kunden signiert.
   encryptedPayload: z.string().min(1).max(20_000).regex(PGP_MESSAGE_RE, "Kein gültiger PGP-Blob."),
   paymentMethod: z.enum(["BTC", "XMR"]),
   items: z
@@ -48,8 +48,6 @@ checkoutRouter.post(
     try {
       await client.query("BEGIN");
 
-      // Preise NIE vom Client übernehmen – serverseitig neu berechnen und
-      // gleichzeitig Lagerbestand atomar reservieren.
       let amountEur = 0;
       for (const item of items) {
         const { rows } = await client.query(
@@ -111,9 +109,6 @@ checkoutRouter.post(
       const order = insert.rows[0];
       if (!order) throw new Error("Bestellung konnte nicht angelegt werden.");
 
-      // Positionen ohne Personenbezug festhalten, damit reservierter
-      // Lagerbestand bei Ablauf/Storno automatisch zurückgebucht werden
-      // kann (siehe services/payment/poller.ts).
       for (const item of items) {
         await client.query(
           `INSERT INTO order_items (order_id, product_id, quantity) VALUES ($1,$2,$3)`,

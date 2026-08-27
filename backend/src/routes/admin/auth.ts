@@ -10,24 +10,13 @@ import { rateLimit } from "../../middleware/rateLimit.ts";
 import { requireCsrf } from "../../middleware/csrf.ts";
 import { hashToken, requireAdmin } from "../../middleware/auth.ts";
 import { asyncHandler } from "../../lib/asyncHandler.ts";
+import { decryptSecret, encryptSecret, isEncryptedSecret } from "../../services/crypto/secretBox.ts";
 
 export const adminAuthRouter = Router();
 
-const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4h Session-Timeout
-
-/**
- * Vergleichs-Hash für nicht existierende Benutzernamen. Wird beim Start
- * mit den aktuellen argon2-Standardparametern erzeugt, damit der
- * Verifikationsaufwand exakt dem eines echten Treffers entspricht – ein
- * fest kodierter Hash mit abweichenden Kostenparametern wäre messbar
- * schneller und würde Benutzernamen-Enumeration über Timing erlauben.
- */
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 const dummyHashPromise = argon2.hash(randomBytes(32).toString("hex"), { type: argon2.argon2id });
 
-/**
- * Zusätzliche Drosselung pro Benutzername (ergänzt das IP-Rate-Limit,
- * das ein Angreifer mit wechselnden IPs umgehen könnte).
- */
 const failedAttempts = new Map<string, { count: number; resetAt: number }>();
 const USERNAME_WINDOW_MS = 15 * 60 * 1000;
 const USERNAME_MAX_FAILURES = 10;
@@ -76,25 +65,31 @@ adminAuthRouter.post(
 
     if (isUsernameLocked(username)) {
       logger.warn("Admin-Login vorübergehend gesperrt (zu viele Fehlversuche)");
-      return res
-        .status(429)
-        .json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." });
+      return res.status(429).json({ error: "Zu viele Fehlversuche. Bitte später erneut versuchen." });
     }
 
-    const { rows } = await pool.query(
-      `SELECT id, password_hash, totp_secret FROM admin_users WHERE username = $1`,
-      [username]
-    );
+    const { rows } = await pool.query<{
+      id: string;
+      password_hash: string;
+      totp_secret: string;
+    }>(`SELECT id, password_hash, totp_secret FROM admin_users WHERE username = $1`, [username]);
     const user = rows[0];
 
-    // Konstante Fehlerantwort unabhängig davon, ob der Username existiert
-    // (kein User-Enumeration-Leak). Beide Faktoren werden immer geprüft,
-    // damit auch die Laufzeit vergleichbar bleibt.
     const passwordOk = await argon2
       .verify(user?.password_hash ?? (await dummyHashPromise), password)
       .catch(() => false);
-    const totpOk = user
-      ? await verifyOtp({ secret: user.totp_secret, token: totpCode })
+
+    let totpSecret: string | null = null;
+    if (user) {
+      try {
+        totpSecret = decryptSecret(user.totp_secret);
+      } catch (err) {
+        logger.error({ err, adminUserId: user.id }, "TOTP-Secret konnte nicht entschlüsselt werden");
+      }
+    }
+
+    const totpOk = totpSecret
+      ? await verifyOtp({ secret: totpSecret, token: totpCode })
           .then((r) => r.valid)
           .catch(() => false)
       : false;
@@ -103,6 +98,17 @@ adminAuthRouter.post(
       recordFailure(username);
       logger.warn("Fehlgeschlagener Admin-Login-Versuch");
       return res.status(401).json({ error: "Anmeldung fehlgeschlagen." });
+    }
+
+    // Bestehende Installationen können noch Klartext-TOTP-Secrets besitzen.
+    // Nach einer erfolgreichen Zwei-Faktor-Anmeldung werden sie atomar in
+    // das neue verschlüsselte Format überführt.
+    if (!isEncryptedSecret(user.totp_secret) && totpSecret) {
+      await pool.query(`UPDATE admin_users SET totp_secret = $1 WHERE id = $2 AND totp_secret = $3`, [
+        encryptSecret(totpSecret),
+        user.id,
+        user.totp_secret
+      ]);
     }
 
     failedAttempts.delete(username);

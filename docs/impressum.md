@@ -4,40 +4,27 @@
 > wird im **Admin-Panel unter "Einstellungen"** gepflegt und in der
 > Datenbank gespeichert; die Startwerte stehen in
 > `backend/src/lib/siteSettings.ts`.
-> Vor dem Live-Betrieb: Platzhalter ausfüllen, Inhalt ggf. juristisch prüfen
-> lassen (kein Rechtsrat, nur strukturelle Vorlage).
+> Vor dem Live-Betrieb: Platzhalter ausfüllen und rechtlich prüfen lassen.
 
 ## Rechtsgrundlage
 
-- § 5 TMG (Telemediengesetz) — Anbieterkennzeichnung
-- § 18 Abs. 2 MStV (Medienstaatsvertrag) — Verantwortlicher für den Inhalt
+- § 5 DDG (Digitale-Dienste-Gesetz) — allgemeine Informationspflichten
+- § 18 Abs. 2 MStV (Medienstaatsvertrag) — Verantwortlicher für journalistisch-redaktionelle Inhalte, soweit einschlägig
 
-## Pflichtangaben
+## Pflichtangaben / Prüfpunkte
 
 1. **Name/Firma** des Betreibers (bei Einzelunternehmen: Vor- und Nachname)
 2. **Ladungsfähige Anschrift** (kein Postfach)
-3. **Kontaktmöglichkeit** — hier bewusst **nur das Kontaktformular**
-   (`/kontakt`), da keine E-Mail-Adresse im Klartext auf der Website
-   erscheinen soll (Spam-/Scraping-Vermeidung, Konsistenz mit dem
-   Datensparsamkeitskonzept). Eine Telefonnummer ist rechtlich nicht
-   zwingend, sofern eine elektronische Kontaktaufnahme mit kurzer
-   Reaktionszeit möglich ist — das Kontaktformular sollte daher regelmäßig
-   geprüft werden.
-4. **Umsatzsteuer-Identifikationsnummer** (§ 27a UStG), falls vorhanden
-5. **Verantwortlicher für den Inhalt** nach § 18 Abs. 2 MStV (bei
-   redaktionellen/journalistischen Inhalten; für einen reinen Webshop meist
-   identisch mit den Anbieterangaben)
-6. **EU-Streitschlichtung**: Link zur OS-Plattform der EU-Kommission
-   (https://ec.europa.eu/consumers/odr/) sowie Angabe, ob/dass eine
-   Teilnahme an Verbraucherschlichtungsverfahren erfolgt oder nicht.
+3. **E-Mail-Adresse** für eine schnelle elektronische Kontaktaufnahme nach § 5 Abs. 1 Nr. 2 DDG. Ein bloßes Kontaktformular ersetzt diese Pflichtangabe nicht.
+4. Ggf. weitere Angaben für eine unmittelbare Kommunikation, abhängig vom konkreten Geschäftsmodell und der Erreichbarkeit.
+5. **Register und Registernummer**, soweit einschlägig.
+6. **Umsatzsteuer-Identifikationsnummer** bzw. Wirtschafts-Identifikationsnummer, soweit vorhanden und gesetzlich anzugeben.
+7. **Zuständige Aufsichtsbehörde**, soweit die Tätigkeit behördlich zulassungspflichtig ist.
+8. **Verantwortlicher für journalistisch-redaktionelle Inhalte** nach § 18 Abs. 2 MStV, soweit einschlägig.
+9. **Verbraucherschlichtung**: Die frühere EU-OS-Plattform ist seit 20. Juli 2025 eingestellt. Daher keinen alten ODR-Link mehr verwenden. Stattdessen nur die jeweils tatsächlich anwendbaren Informationspflichten zur Verbraucherschlichtung aufnehmen.
 
 ## Hinweis zum Geschäftsmodell (Kryptozahlungen)
 
-Da ausschließlich mit Bitcoin und Monero bezahlt wird, ist zu prüfen, ob
-nach nationalem Recht (z.B. GwG — Geldwäschegesetz) besondere Pflichten
-entstehen (Verpflichteter nach § 2 GwG?), abhängig davon, ob der Betreiber
-selbst als Kryptowertedienstleister auftritt oder lediglich Zahlungen für
-eigene Waren entgegennimmt. Für den reinen Wareneinzelhandel mit
-Krypto-Bezahlung ist regelmäßig **keine** BaFin-Erlaubnispflicht einschlägig
-(kein Tausch-/Verwahrgeschäft), dies sollte aber im Projektbericht als
-bewusst geprüfte Annahme dokumentiert werden.
+Bei Bitcoin-/Monero-Zahlungen für eigene Waren sollte vor Live-Betrieb geprüft werden, ob aus dem konkreten Geschäftsmodell zusätzliche aufsichts-, geldwäsche- oder steuerrechtliche Pflichten entstehen. Die reine Entgegennahme von Kryptowerten als Zahlungsmittel ist von Tätigkeiten wie Verwahrung, Tausch oder Vermittlung zu unterscheiden; die konkrete Einordnung hängt von der tatsächlichen Ausgestaltung ab.
+
+Diese Datei ist eine technische Arbeitsvorlage und kein Ersatz für eine rechtliche Prüfung des produktiven Shops.
