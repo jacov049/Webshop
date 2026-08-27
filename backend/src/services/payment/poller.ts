@@ -29,12 +29,13 @@ function decimalToUnits(value: string, decimals: number): bigint {
   if (!/^\d+(?:\.\d+)?$/.test(normalized)) {
     throw new Error(`Ungültiger Kryptobetrag: ${value}`);
   }
-  const [whole, fraction = ""] = normalized.split(".");
+  const [wholeRaw, fraction = ""] = normalized.split(".");
+  const whole = wholeRaw ?? "0";
   const padded = fraction.padEnd(decimals, "0");
   if (padded.length > decimals && /[1-9]/.test(padded.slice(decimals))) {
     throw new Error(`Kryptobetrag hat mehr als ${decimals} relevante Nachkommastellen.`);
   }
-  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt((padded.slice(0, decimals) || "0"));
+  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(padded.slice(0, decimals) || "0");
 }
 
 function toleratedTarget(amount: bigint): bigint {
@@ -115,12 +116,6 @@ async function pollOrder(order: OpenOrder) {
   );
 }
 
-/**
- * Eine Bestellung darf erst ablaufen, nachdem nach Ende des Zahlungsfensters
- * erfolgreich geprüft wurde und dieser Check noch frisch ist. Fällt der Node
- * im aktuellen Zyklus aus, verhindert die Freshness-Bedingung, dass auf Basis
- * eines veralteten Checks Bestand freigegeben wird.
- */
 async function expireOverdueOrders() {
   const graceSeconds = Math.ceil(EXPIRY_GRACE_MS / 1000);
   const { rows } = await pool.query<{ id: string }>(
