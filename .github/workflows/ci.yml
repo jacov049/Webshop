@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - codex/security-hardening
+    paths-ignore:
+      - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
 
 permissions:
   contents: read
