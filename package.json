@@ -1,0 +1,8 @@
+{
+  "name": "cryptoshop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "mocks": "node dev/mock-services/server.mjs"
+  }
+}

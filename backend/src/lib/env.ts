@@ -33,6 +33,10 @@ const schema = z.object({
   BTC_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(2),
   XMR_WALLET_RPC_URL: z.string().default("http://127.0.0.1:18083/json_rpc"),
   XMR_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(10),
+  // Taktung der Zahlungsprüfung. Öffentliche Nodes/APIs haben teils enge
+  // Rate-Limits – hier ggf. hochsetzen, wenn viele offene Bestellungen
+  // gleichzeitig laufen.
+  PAYMENT_POLL_INTERVAL_MS: z.coerce.number().int().min(1_000).default(30_000),
   PAYMENT_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
   // Aufbewahrungsfrist für ALLE kundenbezogenen Daten (Bestellungen inkl.
   // Positionen, Kontaktanfragen). Nach Ablauf werden die Datensätze

@@ -17,6 +17,8 @@ Ende-zu-Ende-Verschlüsselungsfluss.
 backend/    Node.js/Express-API (Bestellungen, Zahlungs-Polling, Admin-Auth)
 frontend/   Kunden-Shop (SvelteKit, adapter-node)
 admin/      Admin-Panel (SvelteKit-SPA, adapter-static)
+dev/        Mock-Dienste (Esplora, monero-wallet-rpc, Kursquelle) für
+            Offline-Entwicklung und Tests des Zahlungsablaufs
 infra/      docker-compose, Caddyfile (Reverse Proxy/TLS), nftables.conf
 docs/       Impressum/Datenschutz/Widerruf-Vorlagen, Verschlüsselungskonzept,
             Demo-PGP-Schlüsselpaar für lokale Entwicklung
@@ -84,6 +86,24 @@ Warnhinweis in [`docs/demo-keys/README.md`](docs/demo-keys/README.md).
 BTC/XMR-Zahlungen benötigen zusätzlich `BTC_XPUB` bzw. eine erreichbare
 `monero-wallet-rpc`-Instanz; ohne diese schlägt nur der Checkout für die
 jeweilige Zahlungsmethode fehl, der Rest der Anwendung funktioniert.
+
+### Zahlungsablauf offline testen
+
+Damit man den kompletten Zahlungsweg ohne echtes Geld, ohne öffentliche
+Nodes und ohne Internetzugang durchspielen kann, liegt unter
+[`dev/mock-services/`](dev/mock-services/) ein Nachbau der drei externen
+Abhängigkeiten (Esplora, `monero-wallet-rpc`, Kursquelle) samt Steuer-API,
+mit der sich Zahlungseingänge und Blockbestätigungen simulieren lassen:
+
+```bash
+npm run mocks    # startet die Mocks auf :9100-:9103
+```
+
+Die passenden `.env`-Werte und Beispielaufrufe stehen in
+[`dev/mock-services/README.md`](dev/mock-services/README.md). Verifiziert
+sind damit beide Zahlungswege end-to-end: Bitcoin `pending → confirming →
+paid` (2 Bestätigungen) und Monero mit Subadresse und 10 Bestätigungen,
+inklusive korrekt abgelehnter Unterzahlung.
 
 ## Produktions-Deployment
 

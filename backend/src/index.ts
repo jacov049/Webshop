@@ -164,6 +164,6 @@ app.listen(env.PORT, () => {
     { port: env.PORT, env: env.NODE_ENV, trustProxyHops: env.TRUST_PROXY_HOPS },
     "CryptoShop Backend gestartet"
   );
-  startPaymentPoller();
+  startPaymentPoller(env.PAYMENT_POLL_INTERVAL_MS);
   startRetentionScheduler();
 });
