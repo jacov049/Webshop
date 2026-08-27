@@ -94,11 +94,13 @@ Vor dem Live-Betrieb zwingend:
 
 ## CI
 
-`.github/workflows/ci.yml` führt — sofern GitHub Actions für das Repository aktiviert ist — folgende Prüfungen aus:
+`.github/workflows/ci.yml` prüft:
 
 - Backend: `npm ci`, `npm run typecheck`, `npm run build`
 - Frontend: `npm ci`, `npm run check`, `npm run build`
 - Admin: `npm ci`, `npm run check`, `npm run build`
+
+Der Security-Hardening-Branch wurde damit erfolgreich durch alle drei Jobs gebaut und typgeprüft.
 
 ## Sicherheits-Checkliste
 
