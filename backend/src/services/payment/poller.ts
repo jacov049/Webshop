@@ -68,7 +68,6 @@ function summarizePayments(payments: PaymentSlice[], target: bigint, requiredCon
 
   return {
     anyReceived: totalReceived > 0n,
-    receivedEnough: totalReceived >= target,
     confirmedEnough: confirmedReceived >= target,
     confirmations
   };
@@ -117,10 +116,10 @@ async function pollOrder(order: OpenOrder) {
 }
 
 /**
- * Eine Bestellung darf erst ablaufen, nachdem mindestens eine erfolgreiche
- * Blockchain-/Wallet-Prüfung NACH Ende des Zahlungsfensters stattgefunden hat.
- * Dadurch führt ein Node-Ausfall oder eine Zahlung unmittelbar vor Ablauf
- * nicht dazu, dass Geld eingeht, die Bestellung aber dauerhaft "expired" ist.
+ * Eine Bestellung darf erst ablaufen, nachdem nach Ende des Zahlungsfensters
+ * erfolgreich geprüft wurde und dieser Check noch frisch ist. Fällt der Node
+ * im aktuellen Zyklus aus, verhindert die Freshness-Bedingung, dass auf Basis
+ * eines veralteten Checks Bestand freigegeben wird.
  */
 async function expireOverdueOrders() {
   const graceSeconds = Math.ceil(EXPIRY_GRACE_MS / 1000);
@@ -128,9 +127,10 @@ async function expireOverdueOrders() {
     `UPDATE orders
         SET status = 'expired', updated_at = now()
       WHERE status = 'pending'
-        AND expires_at + ($1 * interval '1 second') < now()
+        AND expires_at + ($1::int * interval '1 second') < now()
         AND last_payment_check_at IS NOT NULL
         AND last_payment_check_at >= expires_at
+        AND last_payment_check_at >= now() - ($1::int * interval '1 second')
       RETURNING id`,
     [graceSeconds]
   );
@@ -166,8 +166,6 @@ async function pollOpenOrders() {
 }
 
 async function runPollCycle() {
-  // Immer zuerst Zahlungen prüfen, erst danach abgelaufene unbezahlte
-  // Bestellungen freigeben.
   await pollOpenOrders();
   await expireOverdueOrders();
 }
