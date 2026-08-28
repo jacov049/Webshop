@@ -33,8 +33,8 @@ export interface OrderStatusResponse {
 export interface CheckoutResponse {
 	orderToken: string;
 	paymentAddress: string;
-	amountCrypto: number;
-	amountEur: number;
+	amountCrypto: string;
+	amountEur: string;
 	paymentMethod: PaymentMethod;
 	expiresAt: string;
 }

@@ -29,8 +29,7 @@
 			const payload = {
 				name,
 				address: { street, zip, city, country },
-				note: note || undefined,
-				items: cart.items.map((i) => ({ productId: i.productId, name: i.name, quantity: i.quantity }))
+				note: note || undefined
 			};
 			const encryptedPayload = await encryptForOperator(payload);
 

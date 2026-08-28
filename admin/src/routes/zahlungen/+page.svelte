@@ -1,18 +1,20 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { apiGet } from '$lib/api';
-	import type { AdminOrder } from '$lib/types';
+	import type { AdminOrder, Page } from '$lib/types';
 
 	let openOrders = $state<AdminOrder[]>([]);
 	let loading = $state(true);
+  let truncated = $state(false);
 
 	async function load() {
 		try {
 			const [pending, confirming] = await Promise.all([
-				apiGet<AdminOrder[]>('/admin/orders?status=pending'),
-				apiGet<AdminOrder[]>('/admin/orders?status=confirming')
+				apiGet<Page<AdminOrder>>('/admin/orders?status=pending&limit=200'),
+				apiGet<Page<AdminOrder>>('/admin/orders?status=confirming&limit=200')
 			]);
-			openOrders = [...pending, ...confirming].sort(
+			truncated = !!pending.nextCursor || !!confirming.nextCursor;
+			openOrders = [...pending.items, ...confirming.items].sort(
 				(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 			);
 		} finally {
@@ -26,6 +28,7 @@
 </script>
 
 <h1>Zahlungsmonitor</h1>
+{#if truncated}<p>Weitere offene Vorgänge unter <a href="/bestellungen">Bestellungen</a> laden.</p>{/if}
 <p class="muted">Aktualisiert automatisch alle 15 Sekunden.</p>
 
 {#if loading}

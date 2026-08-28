@@ -1,28 +1,27 @@
+import { fetchJson } from "../../lib/http.ts";
 import { env } from "../../lib/env.ts";
 
 /**
  * Monero: Anbindung über monero-wallet-rpc im view-only-Modus, verbunden
- * mit einem öffentlichen Remote-Node (siehe Konzept Abschnitt 5 – bewusste
- * Architekturentscheidung: dauerhaft öffentliche Nodes, kein eigener Node).
- * Für jede Bestellung wird eine neue Subadresse erzeugt.
+ * mit einem öffentlichen Remote-Node. Für jede Bestellung wird eine neue
+ * Subadresse erzeugt.
  */
 
 let rpcId = 0;
 
 async function rpcCall<T>(method: string, params?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(env.XMR_WALLET_RPC_URL, {
+  const body = await fetchJson<{ result?: T; error?: { message: string } }>(env.XMR_WALLET_RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: (rpcId++).toString(), method, params })
   });
-  if (!res.ok) {
-    throw new Error(`monero-wallet-rpc HTTP ${res.status} bei Methode ${method}`);
-  }
-  const body = (await res.json()) as { result?: T; error?: { message: string } };
   if (body.error) {
     throw new Error(`monero-wallet-rpc Fehler bei ${method}: ${body.error.message}`);
   }
-  return body.result as T;
+  if (body.result === undefined) {
+    throw new Error(`monero-wallet-rpc lieferte kein Ergebnis für ${method}`);
+  }
+  return body.result;
 }
 
 interface CreateAddressResult {
@@ -30,7 +29,6 @@ interface CreateAddressResult {
   address_index: number;
 }
 
-/** Erzeugt eine neue Subadresse (Account 0) für eine Bestellung. */
 export async function createXmrSubaddress(orderLabel: string): Promise<CreateAddressResult> {
   return rpcCall<CreateAddressResult>("create_address", {
     account_index: 0,
@@ -39,8 +37,8 @@ export async function createXmrSubaddress(orderLabel: string): Promise<CreateAdd
 }
 
 interface Transfer {
-  amount: number;
-  confirmations: number;
+  amount: number | string;
+  confirmations?: number;
   subaddr_index: { major: number; minor: number };
   txid: string;
 }
@@ -50,10 +48,18 @@ interface GetTransfersResult {
   pool?: Transfer[];
 }
 
-/** Ermittelt empfangenen Betrag (Atomic Units) und Bestätigungen für eine Subadresse. */
-export async function getXmrPaymentStatus(
-  addressIndex: number
-): Promise<{ receivedAtomic: bigint; confirmations: number }> {
+export interface XmrPayment {
+  txid: string;
+  amountAtomic: bigint;
+  confirmations: number;
+}
+
+/**
+ * Liefert eingehende Transfers der Bestell-Subadresse jeweils mit ihrem
+ * eigenen Betrag und ihrer eigenen Bestätigungstiefe. So kann eine alte
+ * Kleinstzahlung nicht die Confirmations einer späteren Zahlung übernehmen.
+ */
+export async function getXmrPayments(addressIndex: number): Promise<XmrPayment[]> {
   const result = await rpcCall<GetTransfersResult>("get_transfers", {
     in: true,
     pool: true,
@@ -61,20 +67,18 @@ export async function getXmrPaymentStatus(
     subaddr_indices: [addressIndex]
   });
 
-  const transfers = [...(result.in ?? []), ...(result.pool ?? [])].filter(
-    (t) => t.subaddr_index.minor === addressIndex
-  );
-  if (transfers.length === 0) {
-    return { receivedAtomic: 0n, confirmations: 0 };
-  }
-
-  const receivedAtomic = transfers.reduce((sum, t) => sum + BigInt(t.amount), 0n);
-  const confirmations = Math.max(...transfers.map((t) => t.confirmations ?? 0));
-  return { receivedAtomic, confirmations };
+  return [...(result.in ?? []), ...(result.pool ?? [])]
+    .filter((t) => t.subaddr_index.major === 0 && t.subaddr_index.minor === addressIndex)
+    .map((t) => ({
+      txid: t.txid,
+      amountAtomic: toAtomic(t.amount),
+      confirmations: Math.max(0, Number(t.confirmations ?? 0))
+    }))
+    .filter((t) => t.amountAtomic > 0n && Number.isSafeInteger(t.confirmations));
 }
 
-const ATOMIC_UNITS_PER_XMR = 1_000_000_000_000n;
-
-export function atomicToXmr(atomic: bigint): number {
-  return Number(atomic) / Number(ATOMIC_UNITS_PER_XMR);
+// JSON numbers beyond 2^53 have already lost precision: fail closed.
+function toAtomic(amount: number | string): bigint {
+  if (typeof amount === "number" && !Number.isSafeInteger(amount)) throw new Error("Unsicherer XMR-Betrag");
+  return BigInt(amount);
 }

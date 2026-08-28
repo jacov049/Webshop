@@ -1,3 +1,4 @@
+import { readPage, pageResult } from "../../lib/pagination.ts";
 import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../../db/pool.ts";
@@ -12,20 +13,23 @@ adminContactRouter.use(requireAdmin);
 adminContactRouter.get(
   "/",
   asyncHandler(async (req, res) => {
+    let page;
+    try { page = readPage(req.query); } catch { return res.status(400).json({ error: "Ungültige Seitenauswahl" }); }
     const statusFilter = typeof req.query.status === "string" ? req.query.status : undefined;
     const { rows } = await pool.query(
       `SELECT id, encrypted_payload, status, created_at, deletion_due
      FROM contact_requests
-     WHERE $1::text IS NULL OR status = $1
-     ORDER BY created_at DESC
-     LIMIT 200`,
-      [statusFilter ?? null]
+     WHERE ($1::text IS NULL OR status = $1)
+       AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::uuid))
+     ORDER BY created_at DESC, id DESC
+     LIMIT $4`,
+      [statusFilter ?? null, page.at, page.id, page.limit + 1]
     );
     const requests = rows.map((row) => ({
       ...row,
       encrypted_payload: decryptAtRest(row.encrypted_payload)
     }));
-    res.json(requests);
+    res.json(pageResult(requests, page.limit));
   })
 );
 

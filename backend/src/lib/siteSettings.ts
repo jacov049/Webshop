@@ -3,11 +3,8 @@
  *
  * Alle hier definierten Schlüssel können im Admin-Panel bearbeitet werden
  * und werden öffentlich über GET /api/settings ausgeliefert. Die Defaults
- * dienen als Erstbefüllung (Migration) und als Fallback, falls ein
- * Schlüssel in der Datenbank fehlt.
- *
- * "*_md"-Felder werden im Frontend als (sicheres, escapendes) Markdown
- * gerendert – siehe frontend/src/lib/markdown.ts.
+ * dienen als Erstbefüllung und Fallback. Rechtstexte sind Arbeitsvorlagen
+ * und müssen vor Live-Betrieb an den konkreten Betreiber angepasst werden.
  */
 
 export type SettingType = "text" | "markdown";
@@ -16,9 +13,7 @@ export interface SettingDefinition {
   key: string;
   label: string;
   type: SettingType;
-  /** Gruppierung in der Admin-Oberfläche */
   group: string;
-  /** Hilfetext im Admin-Panel */
   hint?: string;
   default: string;
 }
@@ -78,17 +73,16 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
     group: "Bestellprozess",
     default:
       "Deine Nachricht wird direkt in diesem Browser mit dem PGP-Schlüssel des Betreibers " +
-      "verschlüsselt und ist nur für ihn lesbar. Es wird keine E-Mail-Adresse gespeichert – " +
-      "für eine Rückmeldung gib bitte deine Threema- oder Signal-ID an. Die Antwort erfolgt " +
-      "privat über den angegebenen Messenger, nicht über diese Website."
+      "verschlüsselt und ist nur für ihn lesbar. Es wird keine E-Mail-Adresse im Kontaktformular " +
+      "gespeichert – für eine Rückmeldung gib bitte deine Threema- oder Signal-ID an."
   },
   {
     key: "impressum_md",
     label: "Impressum",
     type: "markdown",
     group: "Rechtstexte",
-    hint: "Pflichtangaben nach § 5 TMG / § 18 MStV. Erläuterungen: docs/impressum.md",
-    default: `## Angaben gemäß § 5 TMG
+    hint: "Pflichtangaben nach § 5 DDG; Erläuterungen: docs/impressum.md",
+    default: `## Angaben gemäß § 5 DDG
 
 [Name / Firma]
 [Straße Hausnummer]
@@ -97,24 +91,29 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
 
 ## Kontakt
 
-Kontaktaufnahme ausschließlich über das [Kontaktformular](/kontakt).
+E-Mail: [pflichtige Kontakt-E-Mail-Adresse]
+Zusätzliche Kontaktmöglichkeit: [Kontaktformular](/kontakt)
 
-## Umsatzsteuer-ID
+## Register / Aufsicht
 
-[USt-IdNr. gemäß § 27a UStG, sofern vorhanden]
+[Register und Registernummer, soweit einschlägig]
+[Zuständige Aufsichtsbehörde, soweit einschlägig]
 
-## Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV
+## Umsatzsteuer-/Wirtschafts-ID
 
-[Name, Anschrift wie oben]
+[USt-IdNr. bzw. Wirtschafts-Identifikationsnummer, soweit vorhanden und anzugeben]
 
-## EU-Streitschlichtung
+## Verantwortlich für journalistisch-redaktionelle Inhalte
 
-Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
-[https://ec.europa.eu/consumers/odr/](https://ec.europa.eu/consumers/odr/).
-Wir sind nicht verpflichtet und nicht bereit, an Streitbeilegungsverfahren vor einer
-Verbraucherschlichtungsstelle teilzunehmen. [Anpassen, falls abweichend.]
+[Name und Anschrift nach § 18 Abs. 2 MStV, soweit einschlägig]
 
-*Platzhalter – vor dem Live-Betrieb durch die tatsächlichen Angaben ersetzen.*`
+## Verbraucherschlichtung
+
+[Erklärung zur Teilnahmebereitschaft/-pflicht an einem Verbraucherschlichtungsverfahren, soweit einschlägig.]
+
+Die frühere EU-Online-Streitbeilegungsplattform (OS/ODR) ist seit 20. Juli 2025 eingestellt und wird hier deshalb nicht mehr verlinkt.
+
+*Platzhalter – vor dem Live-Betrieb durch die tatsächlichen Angaben ersetzen und rechtlich prüfen.*`
   },
   {
     key: "datenschutz_md",
@@ -126,50 +125,48 @@ Verbraucherschlichtungsstelle teilzunehmen. [Anpassen, falls abweichend.]
 
 Dieser Shop erhebt keine Analytics- oder Tracking-Daten und bindet keine
 Drittanbieter-Ressourcen (Fonts, Skripte, CDNs) ein. Es werden keine IP-Adressen
-gespeichert oder geloggt.
+in den eigenen Access-Logs gespeichert.
 
 ## Bestelldaten
 
-Name, Lieferadresse und Bestellinhalt werden vor dem Absenden direkt in deinem Browser
-mit einem PGP-Schlüssel verschlüsselt, der ausschließlich dem Betreiber gehört. Der
-Server speichert nur den verschlüsselten Blob und kann ihn technisch nicht lesen.
+Name, Lieferadresse und persönliche Notizen werden vor dem Absenden direkt in deinem Browser
+mit einem PGP-Schlüssel verschlüsselt. Der Server speichert nur den verschlüsselten Blob
+und besitzt nicht den privaten PGP-Schlüssel.
 
-Alle Bestelldaten werden **14 Tage** nach der Bestellung automatisch und
-unwiderruflich gelöscht. Bitte notiere dir deinen Bestell-Link, solange du ihn
-brauchst – nach Ablauf der Frist ist die Bestellung auch für uns nicht mehr
-einsehbar.
+Die operative Speicherdauer wird über DATA_RETENTION_DAYS gesteuert. Der technische
+Standardwert von 14 Tagen ist nur für Entwicklung/Demo gedacht und muss vor produktivem
+Warenverkauf mit steuer- und handelsrechtlichen Aufbewahrungspflichten abgestimmt werden.
+Offene und noch nicht versendete bezahlte Bestellungen bleiben bis zur Klärung erhalten.
+Abgelaufene oder stornierte Bestellungen werden erst nach Bestandsfreigabe gelöscht.
 
-Zur Lagerverwaltung wird zusätzlich unverschlüsselt gespeichert, welche Artikel in
-welcher Menge zu einer Bestellung gehören. Diese Angaben enthalten keinen Personenbezug.
+Zur Lagerverwaltung wird zusätzlich gespeichert, welche Artikel mit Namen, Einzelpreis und Menge zu einer
+Bestellung gehören. Diese Angaben enthalten für sich genommen keinen Namen oder keine
+Lieferadresse.
 
 ## Zahlungsabwicklung
 
-Zahlungen erfolgen ausschließlich über Bitcoin- und Monero-Netzwerke. Zur Prüfung des
-Zahlungseingangs werden öffentliche Blockchain-Explorer bzw. Nodes Dritter abgefragt
-(z.B. Blockstream Esplora für Bitcoin, ein öffentlicher Monero-Node) – hierbei erhält der
-jeweilige Node-/API-Betreiber technisch bedingt Kenntnis von IP-Adresse und abgefragter
-Zahlungsadresse.
+Zahlungen erfolgen über Bitcoin- und Monero-Netzwerke. Zur Prüfung des Zahlungseingangs
+werden konfigurierte Blockchain-Explorer bzw. Nodes abgefragt. Der jeweilige Betreiber
+dieser Infrastruktur erhält technisch bedingt die IP-Adresse des Shop-Servers und die
+abgefragten Blockchain-Daten.
 
 ## Kontaktanfragen
 
-Nachrichten über das Kontaktformular werden ebenfalls clientseitig PGP-verschlüsselt.
-Eine optional angegebene Threema-/Signal-ID dient ausschließlich der Rückmeldung durch
-den Betreiber. Kontaktanfragen werden spätestens nach 14 Tagen gelöscht, nach
-Beantwortung bereits nach einer kurzen Nachfrist von 7 Tagen.
+Nachrichten über das Kontaktformular werden clientseitig PGP-verschlüsselt. Eine optional
+angegebene Messenger-ID dient der Rückmeldung durch den Betreiber.
 
 ## Cookies
 
-Es werden nur technisch notwendige Cookies gesetzt (Session-Cookie für das Admin-Panel,
-CSRF-Schutz-Cookie). Keine Tracking- oder Marketing-Cookies.
+Es werden nur technisch notwendige Cookies gesetzt (Admin-Session und CSRF-Schutz).
+Keine Tracking- oder Marketing-Cookies.
 
 ## Deine Rechte
 
-Da personenbezogene Bestelldaten ausschließlich verschlüsselt und ohne Klartextbezug zu
-deiner Identität gespeichert werden, erfolgt die Wahrnehmung von Auskunfts-, Berichtigungs-
-und Löschrechten (Art. 15 ff. DSGVO) über das [Kontaktformular](/kontakt) unter Angabe der
-Bestellnummer.
+Auskunfts-, Berichtigungs- und Löschrechte (Art. 15 ff. DSGVO) können über die im
+Impressum angegebene Kontaktmöglichkeit bzw. das Kontaktformular geltend gemacht werden.
+Für die Zuordnung zu einer Bestellung kann der Bestell-Token erforderlich sein.
 
-*Platzhalter – vor dem Live-Betrieb rechtlich prüfen lassen.*`
+*Arbeitsvorlage – vor dem Live-Betrieb rechtlich prüfen und an die tatsächliche Verarbeitung anpassen.*`
   },
   {
     key: "widerruf_md",
@@ -183,19 +180,14 @@ Du hast das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag
 widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem du oder ein von
 dir benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen hast.
 
-Um dein Widerrufsrecht auszuüben, musst du uns über das [Kontaktformular](/kontakt) unter
-Angabe deiner Bestellnummer mittels einer eindeutigen Erklärung über deinen Entschluss,
-diesen Vertrag zu widerrufen, informieren.
+Um dein Widerrufsrecht auszuüben, musst du uns über die im Impressum angegebene
+Kontaktmöglichkeit mittels einer eindeutigen Erklärung über deinen Entschluss informieren.
 
 ## Folgen des Widerrufs
 
-Im Falle eines wirksamen Widerrufs erstatten wir dir den gezahlten Betrag in der
-ursprünglich verwendeten Kryptowährung. Aufgrund der Kursvolatilität von Bitcoin und
-Monero erfolgt die Erstattung [in Höhe des ursprünglichen EUR-Gegenwerts / in Höhe des
-ursprünglich gezahlten Krypto-Betrags — vor Live-Betrieb verbindlich festlegen].
-
-Da Krypto-Zahlungen nicht rückbuchbar sind, teile uns bitte eine Empfangsadresse für die
-Erstattung mit.
+Die konkrete Rückzahlungsabwicklung bei Kryptowährungszahlungen muss vor Live-Betrieb
+rechtlich und technisch verbindlich festgelegt werden. Insbesondere darf die Vorlage
+nicht offenlassen, ob der ursprüngliche Krypto-Betrag oder ein EUR-Gegenwert maßgeblich ist.
 
 ## Muster-Widerrufsformular
 
@@ -205,10 +197,9 @@ Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über den Kauf der
 folgenden Waren: __________
 
 Bestellnummer: __________
-
 Bestellt am: __________
 
-*Platzhalter – vor dem Live-Betrieb rechtlich prüfen lassen.*`
+*Arbeitsvorlage – vor dem Live-Betrieb rechtlich prüfen.*`
   }
 ];
 
@@ -218,5 +209,4 @@ export const SETTING_DEFAULTS: Record<string, string> = Object.fromEntries(
   SETTING_DEFINITIONS.map((d) => [d.key, d.default])
 );
 
-/** Maximale Länge eines einzelnen Einstellungswerts (Schutz vor Speicher-Missbrauch). */
 export const SETTING_MAX_LENGTH = 50_000;

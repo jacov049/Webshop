@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { apiGet } from '$lib/api';
 	import QrCode from '$lib/components/QrCode.svelte';
 	import type { OrderStatusResponse } from '$lib/types';
 
 	let { data }: { data: { order: OrderStatusResponse; token: string } } = $props();
 
-	let order = $state(data.order);
+	let order = $state(untrack(() => data.order));
 	let now = $state(Date.now());
 
 	// Setzt den lokalen Status zurück, falls über einen Link zu einer

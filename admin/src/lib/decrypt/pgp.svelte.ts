@@ -14,6 +14,7 @@ let decryptedKey: openpgp.PrivateKey | null = null;
 
 class KeySessionStore {
 	unlocked = $state(false);
+  generation = $state(0);
 }
 
 export const keySession = new KeySessionStore();
@@ -33,11 +34,13 @@ export async function unlockPrivateKey(armoredKey: string, passphrase: string): 
 		decryptedKey = await openpgp.decryptKey({ privateKey: key, passphrase });
 	}
 
+	keySession.generation++;
 	keySession.unlocked = true;
 }
 
 export function lockPrivateKey(): void {
 	decryptedKey = null;
+	keySession.generation++;
 	keySession.unlocked = false;
 }
 

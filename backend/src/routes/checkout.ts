@@ -10,7 +10,8 @@ import { encryptAtRest } from "../services/crypto/atRest.ts";
 import { deletionDueFromNow } from "../services/retention.ts";
 import { deriveBtcAddress } from "../services/payment/btc.ts";
 import { createXmrSubaddress } from "../services/payment/xmr.ts";
-import { eurToBtc, eurToXmr, RateUnavailableError } from "../services/payment/rates.ts";
+import { decimalToUnits, quoteCrypto, unitsToDecimal } from "../services/payment/amounts.ts";
+import { fetchRates, RateUnavailableError } from "../services/payment/rates.ts";
 
 export const checkoutRouter = Router();
 
@@ -18,8 +19,8 @@ const PGP_MESSAGE_RE = /^-----BEGIN PGP MESSAGE-----[\s\S]+-----END PGP MESSAGE-
 
 const checkoutSchema = z.object({
   // Name/Adresse/Artikel sind bereits clientseitig mit dem PGP-Public-Key
-  // des Betreibers verschlüsselt worden (openpgp.js) – das Backend sieht
-  // hier nur einen undurchsichtigen, signierten Blob.
+  // des Betreibers verschlüsselt worden (openpgp.js). Der Blob ist
+  // verschlüsselt und integritätsgeschützt, aber nicht vom Kunden signiert.
   encryptedPayload: z.string().min(1).max(20_000).regex(PGP_MESSAGE_RE, "Kein gültiger PGP-Blob."),
   paymentMethod: z.enum(["BTC", "XMR"]),
   items: z
@@ -31,6 +32,7 @@ const checkoutSchema = z.object({
     )
     .min(1)
     .max(50)
+    .refine(items => new Set(items.map(i => i.productId)).size === items.length, "Doppelte Artikel-ID")
 });
 
 checkoutRouter.post(
@@ -44,16 +46,25 @@ checkoutRouter.post(
     }
     const { encryptedPayload, paymentMethod, items } = parsed.data;
 
+    // All carts lock products in the same order. No network call occurs while stock is locked.
+    items.sort((a, b) => a.productId.localeCompare(b.productId));
+    let rates;
+    let sub;
+    try {
+      rates = await fetchRates();
+      if (paymentMethod === "XMR") sub = await createXmrSubaddress(`order-${Date.now()}`);
+    } catch {
+      return res.status(503).json({ error: "Zahlungsdienst derzeit nicht verfügbar. Bitte später erneut versuchen." });
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // Preise NIE vom Client übernehmen – serverseitig neu berechnen und
-      // gleichzeitig Lagerbestand atomar reservieren.
-      let amountEur = 0;
+      let cents = 0n;
+      const snapshots: { productId: string; quantity: number; name: string; price: string }[] = [];
       for (const item of items) {
         const { rows } = await client.query(
-          `SELECT price_eur, stock FROM products WHERE id = $1 AND active = true FOR UPDATE`,
+          `SELECT name, price_eur, stock FROM products WHERE id = $1 AND active = true FOR UPDATE`,
           [item.productId]
         );
         const product = rows[0];
@@ -61,7 +72,8 @@ checkoutRouter.post(
         if (product.stock < item.quantity) {
           throw new HttpError(409, "Nicht genügend Lagerbestand für einen Artikel.");
         }
-        amountEur += Number(product.price_eur) * item.quantity;
+        cents += decimalToUnits(product.price_eur, 2) * BigInt(item.quantity);
+        snapshots.push({ ...item, name: product.name, price: product.price_eur });
         await client.query(`UPDATE products SET stock = stock - $1, updated_at = now() WHERE id = $2`, [
           item.quantity,
           item.productId
@@ -70,7 +82,9 @@ checkoutRouter.post(
 
       let paymentAddress: string;
       let derivationIndex: number | null = null;
-      let amountCrypto: number;
+      if (cents <= 0n || cents > 9999999999n) throw new HttpError(400, "Ungültiger Gesamtbetrag.");
+      const amountEur = unitsToDecimal(cents, 2);
+      let amountCrypto: string;
 
       if (paymentMethod === "BTC") {
         const seq = await client.query<{ nextval: string }>(
@@ -78,12 +92,12 @@ checkoutRouter.post(
         );
         derivationIndex = Number(seq.rows[0]?.nextval ?? "0");
         paymentAddress = deriveBtcAddress(derivationIndex);
-        amountCrypto = await eurToBtc(amountEur);
+        amountCrypto = quoteCrypto(cents, rates.bitcoin.eur, 8);
       } else {
-        const sub = await createXmrSubaddress(`order-${Date.now()}`);
+        if (!sub) throw new Error("XMR-Adresse fehlt");
         paymentAddress = sub.address;
         derivationIndex = sub.address_index;
-        amountCrypto = await eurToXmr(amountEur);
+        amountCrypto = quoteCrypto(cents, rates.monero.eur, 12);
       }
 
       const expiresAt = new Date(Date.now() + env.PAYMENT_WINDOW_MINUTES * 60_000);
@@ -111,13 +125,10 @@ checkoutRouter.post(
       const order = insert.rows[0];
       if (!order) throw new Error("Bestellung konnte nicht angelegt werden.");
 
-      // Positionen ohne Personenbezug festhalten, damit reservierter
-      // Lagerbestand bei Ablauf/Storno automatisch zurückgebucht werden
-      // kann (siehe services/payment/poller.ts).
-      for (const item of items) {
+      for (const item of snapshots) {
         await client.query(
-          `INSERT INTO order_items (order_id, product_id, quantity) VALUES ($1,$2,$3)`,
-          [order.id, item.productId, item.quantity]
+          `INSERT INTO order_items (order_id, product_id, quantity, product_name, unit_price_eur) VALUES ($1,$2,$3,$4,$5)`,
+          [order.id, item.productId, item.quantity, item.name, item.price]
         );
       }
 

@@ -9,12 +9,15 @@
 	let decryptError = $state('');
 	let decrypting = $state(false);
 	let busy = $state(false);
+  $effect(() => { if (!keySession.unlocked) decrypted = null; });
 
 	async function decrypt() {
 		decrypting = true;
 		decryptError = '';
 		try {
-			decrypted = await decryptPayload<ContactPayload>(request.encrypted_payload);
+			const generation = keySession.generation;
+      const result = await decryptPayload<ContactPayload>(request.encrypted_payload);
+      if (keySession.unlocked && generation === keySession.generation) decrypted = result;
 		} catch (err) {
 			decryptError = err instanceof Error ? err.message : 'Entschlüsselung fehlgeschlagen.';
 		} finally {

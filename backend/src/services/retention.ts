@@ -1,23 +1,21 @@
+import { repairReleasedStock } from "./stock.ts";
 import { pool } from "../db/pool.ts";
 import { env } from "../lib/env.ts";
 import { logger } from "../lib/logger.ts";
 
 /**
- * Automatisches Löschkonzept (Konzept Abschnitt 9).
+ * Automatisches Löschkonzept.
  *
- * Alle kundenbezogenen Daten werden nach DATA_RETENTION_DAYS Tagen
- * unwiderruflich gelöscht – gerechnet ab `created_at`, nicht anhand des
- * beim Anlegen gespeicherten `deletion_due`. Dadurch wirkt eine geänderte
- * Frist sofort auch auf bereits vorhandene Datensätze, statt erst für
- * künftige zu greifen.
+ * Alle kundenbezogenen Shop-Datensätze werden nach DATA_RETENTION_DAYS
+ * Tagen gelöscht, gerechnet ab `created_at`. Dadurch wirkt eine geänderte
+ * Frist auch auf bereits vorhandene Datensätze.
  *
- * Nicht betroffen sind Artikelstammdaten und die im Admin-Panel
- * gepflegten Website-Texte: das sind Inhalte des Betreibers, keine
- * Kundendaten. Würden sie mitgelöscht, wäre der Shop nach zwei Wochen
- * leer.
- *
- * Rechtlicher Hinweis: § 147 AO / § 257 HGB verlangen für Rechnungsdaten
- * 10 Jahre Aufbewahrung. Siehe docs/datenschutz.md.
+ * WICHTIG: Dieser operative Löschjob ist kein Ersatz für eine gesetzlich
+ * erforderliche Buchführungs-/Rechnungsarchivierung. Stand 2026 gelten für
+ * Buchungsbelege und Rechnungen regelmäßig 8 Jahre (§ 147 AO, § 257 HGB,
+ * § 14b UStG), für bestimmte andere Unterlagen weiterhin längere oder
+ * kürzere Fristen. Fristbeginn und konkret aufzubewahrende Daten sind
+ * gesondert zu prüfen; siehe docs/datenschutz.md.
  */
 export interface RetentionResult {
   deletedOrders: number;
@@ -28,15 +26,14 @@ export interface RetentionResult {
 export async function runRetentionCleanup(): Promise<RetentionResult> {
   const days = env.DATA_RETENTION_DAYS;
 
-  // order_items hängen per ON DELETE CASCADE an orders und verschwinden
-  // damit automatisch mit der Bestellung.
+  await repairReleasedStock();
+  // Unresolved orders must be reconciled, not silently deleted with reserved inventory.
   const orders = await pool.query(
-    `DELETE FROM orders WHERE created_at < now() - ($1 * INTERVAL '1 day')`,
+    `DELETE FROM orders WHERE created_at < now() - ($1 * INTERVAL '1 day')
+       AND (status='shipped' OR (status IN ('expired','cancelled') AND stock_released))`,
     [days]
   );
 
-  // Kontaktanfragen zusätzlich früher, sobald sie beantwortet wurden und
-  // die kurze Nachfrist abgelaufen ist.
   const contacts = await pool.query(
     `DELETE FROM contact_requests
       WHERE created_at < now() - ($1 * INTERVAL '1 day')
@@ -44,8 +41,6 @@ export async function runRetentionCleanup(): Promise<RetentionResult> {
     [days]
   );
 
-  // Abgelaufene Admin-Sessions sind wertlos und würden sonst unbegrenzt
-  // in der Tabelle liegen bleiben.
   const sessions = await pool.query(`DELETE FROM admin_sessions WHERE expires_at < now()`);
 
   return {
@@ -55,7 +50,6 @@ export async function runRetentionCleanup(): Promise<RetentionResult> {
   };
 }
 
-/** Zeitpunkt, zu dem ein jetzt angelegter Datensatz gelöscht wird. */
 export function deletionDueFromNow(): Date {
   return new Date(Date.now() + env.DATA_RETENTION_DAYS * 86_400_000);
 }
@@ -78,15 +72,8 @@ async function tick() {
   }
 }
 
-/**
- * Startet den automatischen Löschjob im Backend-Prozess. Damit greift das
- * Löschkonzept auch ohne extern eingerichteten Cronjob; das CLI-Skript
- * `npm run delete-expired` bleibt für manuelle Läufe verfügbar.
- */
 export function startRetentionScheduler(intervalMs = 6 * 60 * 60 * 1000) {
   if (timer) return;
-  // Erster Lauf kurz nach dem Start, damit überfällige Daten nicht bis
-  // zum ersten Intervall liegen bleiben (z.B. nach längerem Stillstand).
   setTimeout(tick, 10_000).unref();
   timer = setInterval(tick, intervalMs);
   timer.unref();

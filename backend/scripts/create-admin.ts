@@ -3,21 +3,16 @@ import { stdin, stdout } from "node:process";
 import argon2 from "argon2";
 import { generateSecret, generateURI } from "otplib";
 import { pool } from "../src/db/pool.ts";
+import { encryptSecret } from "../src/services/crypto/secretBox.ts";
 
 /**
  * CLI zum Anlegen eines Admin-Benutzers.
  * Aufruf: npm run create-admin
  * Gibt am Ende das TOTP-Secret + eine otpauth://-URL aus, die einmalig
- * in einer Authenticator-App (z.B. Aegis, FreeOTP) hinterlegt werden muss.
- * Das Secret wird NICHT erneut angezeigt.
+ * in einer Authenticator-App hinterlegt werden muss.
  */
 async function main() {
   const rl = createInterface({ input: stdin });
-  // Über einen einzigen geteilten AsyncIterator statt mehrerer
-  // rl.question()-Aufrufe lesen: readline liefert bei nicht-interaktivem
-  // (z.B. gepipetem) stdin sonst "line"-Events, bevor der jeweils nächste
-  // question()-Aufruf seinen Listener registriert hat – die zweite Zeile
-  // ginge verloren und das Skript würde lautlos hängen bleiben.
   const lines = rl[Symbol.asyncIterator]();
 
   async function ask(prompt: string): Promise<string> {
@@ -40,7 +35,7 @@ async function main() {
 
     await pool.query(
       `INSERT INTO admin_users (username, password_hash, totp_secret) VALUES ($1,$2,$3)`,
-      [username, passwordHash, totpSecret]
+      [username, passwordHash, encryptSecret(totpSecret)]
     );
 
     console.log("\nAdmin-Benutzer angelegt.");

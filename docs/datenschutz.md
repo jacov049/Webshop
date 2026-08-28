@@ -2,109 +2,98 @@
 
 > Arbeitsvorlage für den Betreiber. Der tatsächlich ausgelieferte Text
 > wird im **Admin-Panel unter "Einstellungen"** gepflegt (Startwerte:
-> `backend/src/lib/siteSettings.ts`). Diese Datei erläutert
-> zusätzlich die **Rechtsgrundlagen** je Verarbeitung für den
-> Projektbericht (Art. 6 DSGVO) — das ist der Teil, der in einer normalen
-> Datenschutzerklärung meist implizit bleibt, hier aber explizit gemacht
-> werden soll, weil er Kern der Ausbildungsaufgabe ist.
+> `backend/src/lib/siteSettings.ts`). Diese Datei erläutert zusätzlich die
+> Rechtsgrundlagen je Verarbeitung. Vor einem produktiven Einsatz muss der
+> konkrete Shop rechtlich geprüft und an das tatsächliche Geschäftsmodell
+> angepasst werden.
 
 ## Verantwortlicher
 
-[Name/Anschrift des Betreibers — siehe impressum.md]
+[Name/Anschrift/E-Mail des Betreibers — siehe impressum.md]
 
 ## Verarbeitungsübersicht
 
 | Verarbeitung | Daten | Rechtsgrundlage (Art. 6 Abs. 1 DSGVO) | Speicherdauer |
 |---|---|---|---|
-| Bestellabwicklung | Name, Lieferadresse, Artikel (PGP-verschlüsselt) | lit. b (Vertragserfüllung) | 14 Tage (konfigurierbar, s.u.) |
-| Bestellpositionen (Lagerverwaltung) | Artikel-ID + Menge, **ohne** Personenbezug | lit. b | mit Bestellung |
-| Zahlungsabgleich BTC/XMR | Zahlungsadresse, Betrag, Bestätigungen (unverschlüsselt, aber ohne Personenbezug in der DB) | lit. b | wie Bestellung |
-| Abfrage öffentlicher Blockchain-APIs/-Nodes | IP-Adresse des Servers (nicht des Kunden) gegenüber Blockstream/Node-Betreiber | lit. f (berechtigtes Interesse: Zahlungsverifikation) | keine Speicherung durch uns; siehe Datenschutz des jeweiligen Node-Betreibers |
-| Kontaktanfragen | Nachricht, optionale Bestellnummer, optionale Messenger-ID (PGP-verschlüsselt) | lit. b/f | 14 Tage, nach Beantwortung 7 Tage Nachfrist |
-| Admin-Login | Benutzername, Argon2id-Passwort-Hash, TOTP-Secret, Session-Token-Hash | lit. f (Systemsicherheit) | bis Löschung des Admin-Accounts / Session-Ablauf |
-| Server-Logs | HTTP-Methode, Pfad (ohne Query-String), Statuscode — **keine IP-Adressen** | lit. f | rotierend, kurzfristig |
+| Bestellabwicklung | Name, Lieferadresse, Artikel (PGP-verschlüsselt) | lit. b (Vertragserfüllung) | technisch konfigurierbar; produktiv mit gesetzlichen Aufbewahrungspflichten abstimmen |
+| Bestellpositionen (Lagerverwaltung) | Artikel-ID + Menge, ohne direkten Personenbezug | lit. b | mit Bestellung |
+| Zahlungsabgleich BTC/XMR | Zahlungsadresse, Betrag, Bestätigungen | lit. b | wie Bestellung |
+| Abfrage öffentlicher Blockchain-APIs/-Nodes | IP-Adresse des Servers gegenüber Node/API-Betreiber | lit. f (berechtigtes Interesse: Zahlungsverifikation) | keine Speicherung durch uns; Drittanbieter gesondert prüfen |
+| Kontaktanfragen | Nachricht, optionale Bestellnummer, optionale Messenger-ID (PGP-verschlüsselt) | lit. b/f | konfigurierbar; nach Erledigung möglichst kurz |
+| Admin-Login | Benutzername, Argon2id-Passwort-Hash, verschlüsseltes TOTP-Secret, Session-Token-Hash | lit. f (Systemsicherheit) | bis Löschung des Admin-Accounts / Session-Ablauf |
+| Server-Logs | HTTP-Methode, maskierter Pfad, Statuscode — keine IP-Adressen | lit. f | rotierend, kurzfristig |
 
-## Automatische Löschung nach 14 Tagen
+## Automatische Löschung
 
-Sämtliche kundenbezogenen Daten – Bestellungen samt Positionen und
-Kontaktanfragen – werden nach Ablauf von `DATA_RETENTION_DAYS` (Standard:
-**14 Tage**) automatisch und unwiderruflich gelöscht. Der Löschlauf ist im
-Backend-Prozess eingebaut und läuft alle 6 Stunden
-(`backend/src/services/retention.ts`); ein extern eingerichteter Cronjob
-ist nicht erforderlich, `npm run delete-expired` stößt denselben Lauf
-manuell an.
+Der Backend-Löschjob entfernt abgeschlossene kundenbezogene Datensätze nach
+`DATA_RETENTION_DAYS`. Der Standardwert von 14 Tagen ist nur für Entwicklung,
+Demo und Tests gedacht. Er ist **kein geeigneter pauschaler Produktionswert**
+für einen echten Warenverkauf.
 
-Maßgeblich ist dabei `created_at`, nicht das beim Anlegen gespeicherte
-`deletion_due`. Eine geänderte Frist wirkt dadurch sofort auch auf bereits
-vorhandene Datensätze.
+Maßgeblich ist derzeit `created_at`. Eine Änderung von
+`DATA_RETENTION_DAYS` wirkt dadurch auch auf bereits vorhandene Datensätze.
+Offene und bezahlte, noch nicht versendete Bestellungen bleiben bis zur Klärung
+erhalten. Stornierte/abgelaufene Bestellungen werden erst nach erfolgreicher
+Bestandsfreigabe gelöscht. Bereits im Admin gespeicherte Texte werden durch die
+Migration nicht überschrieben und müssen diese Ausnahme ebenfalls erläutern.
 
 Nicht gelöscht werden Artikelstammdaten und die im Admin-Panel gepflegten
-Website-Texte: das sind Inhalte des Betreibers, keine Kundendaten.
+Website-Texte, da es sich dabei nicht um Kundendaten handelt.
 
-### Konflikt mit der handels- und steuerrechtlichen Aufbewahrungspflicht
+### Konflikt mit handels- und steuerrechtlichen Aufbewahrungspflichten
 
-**Wichtig für den Projektbericht:** § 147 Abs. 3 AO und § 257 Abs. 4 HGB
-verlangen für Rechnungen und Buchungsbelege eine Aufbewahrung von
-**10 Jahren**. Eine Löschung nach 14 Tagen steht dazu im Widerspruch,
-sobald tatsächlich Waren gegen Entgelt verkauft werden.
+Für produktive Verkäufe dürfen steuerlich oder handelsrechtlich
+aufbewahrungspflichtige Unterlagen nicht nach wenigen Tagen gelöscht werden.
+Stand 2026 gelten insbesondere:
 
-Die 14-Tage-Frist ist daher eine bewusste Entscheidung für ein
-Demonstrations- bzw. Ausbildungssystem ohne echte Umsätze, in dem
-maximale Datensparsamkeit Vorrang hat. Für einen produktiven Betrieb ist
-`DATA_RETENTION_DAYS=3650` zu setzen; die Datenminimierung nach
-Art. 5 Abs. 1 lit. c DSGVO wird dann dadurch gewahrt, dass die
-personenbezogenen Bestelldaten ausschließlich PGP-verschlüsselt vorliegen
-und der Server sie nicht lesen kann.
+- § 147 Abs. 3 AO: Buchungsbelege nach § 147 Abs. 1 Nr. 4 grundsätzlich **8 Jahre**; bestimmte andere Unterlagen weiterhin 10 bzw. 6 Jahre.
+- § 257 Abs. 4 HGB: Buchungsbelege grundsätzlich **8 Jahre**; Handelsbücher, Inventare und Abschlüsse grundsätzlich 10 Jahre, sonstige dort genannte Unterlagen 6 Jahre.
+- § 14b UStG: Rechnungen grundsätzlich **8 Jahre**.
 
-Denkbare Zwischenlösung, die beides erfüllt und im Projektbericht
-diskutiert werden kann: Bestelldaten nach 14 Tagen löschen und
-stattdessen eine separate, auf die steuerlich erforderlichen Angaben
-reduzierte Rechnungskopie außerhalb des Shops archivieren.
+Die konkrete Frist beginnt je nach Vorschrift nicht einfach am Bestelltag,
+sondern regelmäßig mit dem Schluss des maßgeblichen Kalenderjahres. Deshalb
+sollte `DATA_RETENTION_DAYS` nicht als alleinige Lösung für die gesetzliche
+Archivierung behandelt werden.
+
+Empfohlene Architektur für einen produktiven Shop: Die operativen,
+personenbezogenen Bestelldaten möglichst kurz halten und die gesetzlich
+notwendigen Rechnungs-/Buchungsdaten in einer **separaten, auf das erforderliche
+Minimum reduzierten und revisionssicher verwalteten Archivierung** führen.
+Welche Daten dort konkret erforderlich sind, muss steuerlich/rechtlich geprüft
+werden.
 
 ## Warum Bestellpositionen unverschlüsselt gespeichert werden
 
-Die Tabelle `order_items` hält fest, welcher Artikel in welcher Menge zu
-einer Bestellung gehört – bewusst ohne jeden Personenbezug (wer bestellt
-hat, steht ausschließlich im PGP-Blob). Das ist notwendig, damit
-reservierter Lagerbestand bei abgelaufenen oder stornierten Bestellungen
-automatisch zurückgebucht werden kann; ohne diese Angabe könnte der Server
-nach Ablauf eines Zahlungsfensters nicht wissen, welche Artikel wieder
-freizugeben sind, und der Bestand würde dauerhaft blockiert. Die Abwägung
-(minimale zusätzliche Datenhaltung vs. funktionierende Lagerverwaltung)
-gehört in den Projektbericht.
+Die Tabelle `order_items` hält fest, welcher Artikel in welcher Menge zu einer
+Bestellung gehört – bewusst ohne Namen oder Lieferadresse. Das ist notwendig,
+damit reservierter Lagerbestand bei abgelaufenen oder stornierten Bestellungen
+automatisch zurückgebucht werden kann. Die Zuordnung zum Kunden liegt nur im
+verschlüsselten Payload.
 
 ## Warum keine IP-Adressen gespeichert werden
 
-Die Anwendung ist bewusst so konfiguriert, dass Access-Logs (Backend:
-`pino-http`-Serializer, Caddy: `log`-Filter-Direktive) IP-Adressen aktiv
-herausfiltern. Zusätzlich werden Bestell-Tokens (UUIDs) in geloggten
-Pfaden zu `:id` maskiert – sonst hätte jeder mit Log-Zugriff über den
-`order_token` Einsicht in den Bestellstatus. Dies reduziert die Angriffsfläche bei einem Server-Kompromiss
-und minimiert die datenschutzrechtlich relevante Datenmenge. Trade-off: Ohne
-IP-Logging ist forensische Nachvollziehbarkeit bei Missbrauch (z.B.
-DoS-Versuche) eingeschränkt — das In-Memory-Rate-Limiting
-(`backend/src/middleware/rateLimit.ts`) verarbeitet die IP nur transient
-für die Dauer des Zeitfensters, ohne sie zu persistieren oder zu loggen.
+Die Anwendung ist so konfiguriert, dass Backend- und Caddy-Access-Logs
+IP-Adressen nicht persistieren. Bestell-Tokens werden in Pfaden maskiert. Das
+In-Memory-Rate-Limiting verarbeitet die IP nur vorübergehend für das jeweilige
+Zeitfenster.
 
-## Warum PGP statt „normaler“ Datenbankverschlüsselung
+Das reduziert Datenmenge und Angriffsfläche, erschwert aber die forensische
+Nachvollziehbarkeit bei Missbrauch. Diese Abwägung muss für den tatsächlichen
+Betrieb bewusst getroffen werden.
 
-Bei klassischer serverseitiger Verschlüsselung besitzt die Anwendung selbst
-den Schlüssel und kann die Daten jederzeit entschlüsseln — bei einem
-kompromittierten Server (RCE, gestohlenes Backup, böswilliger Admin-Zugriff
-auf die laufende Anwendung) sind die Klardaten dann trotzdem einsehbar. Mit
-clientseitiger PGP-Verschlüsselung (Public Key des Betreibers) besitzt der
-Server **nie** den privaten Schlüssel — ein Server-Kompromiss allein
-reicht nicht aus, um Bestelldaten zu lesen. Die zusätzliche AES-256-GCM-
-Verschlüsselung "at rest" (`backend/src/services/crypto/atRest.ts`) ist
-eine zweite, unabhängige Schutzschicht für den Fall eines reinen
-Datenbank-/Backup-Diebstahls.
+## Warum PGP statt nur Datenbankverschlüsselung
+
+Bei rein serverseitiger Verschlüsselung besitzt die Anwendung selbst den
+Entschlüsselungsschlüssel. Bei der clientseitigen PGP-Verschlüsselung erhält
+das Backend nur einen verschlüsselten Blob und besitzt keinen PGP-Private-Key.
+Die zusätzliche AES-256-GCM-Verschlüsselung in der Datenbank ist eine zweite,
+unabhängige Schutzschicht gegen einen reinen Datenbank-/Backup-Diebstahl.
 
 ## Rechte der betroffenen Person
 
-Da personenbezogene Bestelldaten ausschließlich verschlüsselt und ohne
-direkten Identitätsbezug in der Datenbank liegen, kann der Betreiber
-Auskunfts-, Berichtigungs- und Löschanfragen (Art. 15, 16, 17 DSGVO) nur
-nach Selbstauskunft der betroffenen Person bearbeiten (z.B. über die
-Bestellnummer, mitgeteilt über das Kontaktformular). Dies ist im
-Projektbericht als bewusste Abwägung zwischen Datensparsamkeit und
-Komfort der Rechtewahrnehmung zu dokumentieren.
+Da Bestelldaten verschlüsselt und nicht unter einem Klartext-Kundenkonto
+geführt werden, kann die Zuordnung einer Anfrage zur Bestellung beispielsweise
+über den Bestell-Token oder andere vom Kunden mitgeteilte Angaben erfolgen.
+Die konkrete Umsetzung der Rechte aus Art. 15 ff. DSGVO muss im produktiven
+Betrieb so gestaltet sein, dass Betroffenenrechte trotz Datensparsamkeit
+praktisch erfüllbar bleiben.

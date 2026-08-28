@@ -10,13 +10,22 @@
 	let decrypting = $state(false);
 	let statusBusy = $state(false);
 
-	const statuses: OrderStatus[] = ['pending', 'confirming', 'paid', 'expired', 'shipped', 'cancelled'];
+	const allowed: Record<OrderStatus, OrderStatus[]> = {
+    pending: ['cancelled'], confirming: ['paid', 'cancelled'], paid: ['shipped', 'cancelled'],
+    expired: [], cancelled: [], shipped: []
+  };
+  const statuses = $derived([order.status, ...allowed[order.status]]);
+  let statusError = $state('');
+  // Clear plaintext on lock, including a decrypt promise that resolves after the lock.
+  $effect(() => { if (!keySession.unlocked) decrypted = null; });
 
 	async function decrypt() {
 		decrypting = true;
 		decryptError = '';
 		try {
-			decrypted = await decryptPayload<OrderPayload>(order.encrypted_payload);
+			const generation = keySession.generation;
+      const result = await decryptPayload<OrderPayload>(order.encrypted_payload);
+      if (keySession.unlocked && generation === keySession.generation) decrypted = result;
 		} catch (err) {
 			decryptError = err instanceof Error ? err.message : 'Entschlüsselung fehlgeschlagen.';
 		} finally {
@@ -27,10 +36,11 @@
 	async function changeStatus(e: Event) {
 		const status = (e.target as HTMLSelectElement).value as OrderStatus;
 		statusBusy = true;
+    statusError = "";
 		try {
 			await apiPatch(`/admin/orders/${order.id}/status`, { status });
 			order.status = status;
-		} finally {
+		} catch (error) { statusError = error instanceof Error ? error.message : "Statuswechsel fehlgeschlagen"; (e.target as HTMLSelectElement).value = order.status; } finally {
 			statusBusy = false;
 		}
 	}
@@ -68,6 +78,10 @@
 		{/if}
 	</div>
 
+	{#if statusError}<p class="error-text">{statusError}</p>{/if}
+	<h3>Verbindliche Bestellpositionen</h3>
+	<ul>{#each order.items as item}<li>{item.quantity}× {item.name ?? "Altbestand: Artikelname nicht verifiziert"} ({item.unit_price_eur ?? "Preis unbekannt"} € / Stück)</li>{/each}</ul>
+	{#if order.items.some(item => !item.name)}<p class="error-text">Altbestellung: Versandpositionen vor Versand manuell prüfen. Kundenangaben sind keine verifizierte Versandgrundlage.</p>{/if}
 	{#if decryptError}
 		<p class="error-text">{decryptError}</p>
 	{/if}
@@ -81,11 +95,6 @@
 			{#if decrypted.note}
 				<p class="muted">Anmerkung: {decrypted.note}</p>
 			{/if}
-			<ul>
-				{#each decrypted.items as item (item.productId)}
-					<li>{item.quantity}× {item.name}</li>
-				{/each}
-			</ul>
 		</div>
 	{/if}
 </div>
@@ -113,7 +122,7 @@
 		padding-top: 0.6rem;
 	}
 
-	.decrypted ul {
+	ul {
 		margin: 0.3rem 0 0;
 		padding-left: 1.1rem;
 	}

@@ -2,8 +2,8 @@ import { HDKey } from "@scure/bip32";
 import { bech32 } from "@scure/base";
 import { sha256 } from "@noble/hashes/sha2";
 import { ripemd160 } from "@noble/hashes/legacy";
+import { fetchJson, fetchText } from "../../lib/http.ts";
 import { env } from "../../lib/env.ts";
-import { logger } from "../../lib/logger.ts";
 
 /**
  * Bitcoin: watch-only HD-Wallet (BIP32/44, hier: native SegWit P2WPKH).
@@ -30,9 +30,6 @@ function getReceiveNode(): HDKey {
   if (!hdRoot) {
     hdRoot = HDKey.fromExtendedKey(env.BTC_XPUB);
   }
-  // Empfangskette (Chain 0) analog BIP44 external chain; xpub muss bereits
-  // auf Account-Ebene (m/84'/0'/0') liegen, hier wird nur noch external/index
-  // angehängt.
   return hdRoot.deriveChild(0);
 }
 
@@ -42,50 +39,56 @@ export function deriveBtcAddress(index: number): string {
   return encodeP2WPKH(hash160(node.publicKey));
 }
 
-interface EsploraAddressStats {
-  chain_stats: { funded_txo_sum: number; spent_txo_sum: number; tx_count: number };
-  mempool_stats: { funded_txo_sum: number; spent_txo_sum: number; tx_count: number };
-}
-
 interface EsploraTx {
   txid: string;
   status: { confirmed: boolean; block_height?: number };
+  vout: Array<{
+    value: number;
+    scriptpubkey_address?: string;
+  }>;
 }
 
-/** Ermittelt empfangenen Betrag (Satoshi) und Bestätigungen für eine Adresse. */
-export async function getBtcPaymentStatus(
-  address: string
-): Promise<{ receivedSats: number; confirmations: number }> {
+export interface BtcPayment {
+  txid: string;
+  amountSats: bigint;
+  confirmations: number;
+}
+
+/**
+ * Liefert jede Zahlung an die Bestelladresse zusammen mit ihrer eigenen
+ * Bestätigungstiefe. Betrag und Confirmations werden bewusst nicht getrennt
+ * aggregiert: Eine alte Kleinstzahlung darf niemals die Confirmations einer
+ * späteren, großen Zahlung "erben".
+ */
+export async function getBtcPayments(address: string): Promise<BtcPayment[]> {
   const base = env.BTC_ESPLORA_URL.replace(/\/$/, "");
+  const txs = await fetchJson<EsploraTx[]>(`${base}/address/${address}/txs`);
+  if (txs.length === 0) return [];
 
-  const statsRes = await fetch(`${base}/address/${address}`);
-  if (!statsRes.ok) {
-    throw new Error(`Esplora-Adressabfrage fehlgeschlagen: HTTP ${statsRes.status}`);
-  }
-  const stats = (await statsRes.json()) as EsploraAddressStats;
-  const receivedSats = stats.chain_stats.funded_txo_sum + stats.mempool_stats.funded_txo_sum;
-
-  if (receivedSats === 0) {
-    return { receivedSats: 0, confirmations: 0 };
-  }
-
-  const txsRes = await fetch(`${base}/address/${address}/txs`);
-  if (!txsRes.ok) {
-    logger.warn({ status: txsRes.status }, "Esplora-TX-Abfrage fehlgeschlagen");
-    return { receivedSats, confirmations: 0 };
-  }
-  const txs = (await txsRes.json()) as EsploraTx[];
-  const confirmedTx = txs.find((tx) => tx.status.confirmed);
-  if (!confirmedTx || confirmedTx.status.block_height === undefined) {
-    return { receivedSats, confirmations: 0 };
+  const confirmedTxs = txs.filter(
+    (tx) => tx.status.confirmed && tx.status.block_height !== undefined
+  );
+  let tipHeight: number | null = null;
+  if (confirmedTxs.length > 0) {
+    tipHeight = Number(await fetchText(`${base}/blocks/tip/height`));
+    if (!Number.isSafeInteger(tipHeight) || tipHeight < 0) {
+      throw new Error("Esplora lieferte eine ungültige Blockhöhe.");
+    }
   }
 
-  const tipRes = await fetch(`${base}/blocks/tip/height`);
-  const tipHeight = tipRes.ok ? Number(await tipRes.text()) : confirmedTx.status.block_height;
-  const confirmations = Math.max(0, tipHeight - confirmedTx.status.block_height + 1);
-  return { receivedSats, confirmations };
-}
+  return txs.flatMap((tx) => {
+    const amount = tx.vout
+      .filter((out) => out.scriptpubkey_address === address)
+      .reduce((sum, out) => sum + BigInt(out.value), 0n);
 
-export function satsToBtc(sats: number): number {
-  return sats / 100_000_000;
+    if (amount <= 0n) return [];
+
+    const blockHeight = tx.status.block_height;
+    const confirmations =
+      tx.status.confirmed && blockHeight !== undefined && tipHeight !== null
+        ? Math.max(0, tipHeight - blockHeight + 1)
+        : 0;
+
+    return [{ txid: tx.txid, amountSats: amount, confirmations }];
+  });
 }
