@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import * as openpgp from 'openpgp';
 import { env } from '$env/dynamic/public';
 
@@ -30,6 +31,10 @@ async function loadPublicKey(): Promise<openpgp.Key> {
 	const armoredKey = await res.text();
 	const key = await openpgp.readKey({ armoredKey });
 	const actual = normalizeFingerprint(key.getFingerprint());
+  // The matching private key is public in docs/demo-keys: never accept it in production.
+  if (!dev && actual === 'ebf9e2ebf87aa0505a05fda6ff6e432a41a2100b') {
+    throw new Error('Der öffentliche Demo-Schlüssel darf nicht produktiv verwendet werden.');
+  }
 
 	if (actual !== expected) {
 		throw new Error('PGP-Public-Key stimmt nicht mit dem konfigurierten Fingerprint überein.');

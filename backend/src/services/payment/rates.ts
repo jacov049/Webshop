@@ -1,3 +1,4 @@
+import { fetchJson } from "../../lib/http.ts";
 import { env } from "../../lib/env.ts";
 import { logger } from "../../lib/logger.ts";
 
@@ -27,28 +28,21 @@ let cache: { rates: RateResponse; fetchedAt: number } | null = null;
 const CACHE_TTL_MS = 60_000;
 
 function isValid(rates: RateResponse | undefined): rates is RateResponse {
-  return (
-    typeof rates?.bitcoin?.eur === "number" &&
+  return !!rates && (
+    Number.isFinite(rates?.bitcoin?.eur) &&
     rates.bitcoin.eur > 0 &&
-    typeof rates?.monero?.eur === "number" &&
+    Number.isFinite(rates?.monero?.eur) &&
     rates.monero.eur > 0
   );
 }
 
-async function fetchRates(): Promise<RateResponse> {
+export async function fetchRates(): Promise<RateResponse> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return cache.rates;
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8_000);
-    const res = await fetch(env.RATES_API_URL, { signal: controller.signal }).finally(() =>
-      clearTimeout(timeout)
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const rates = (await res.json()) as RateResponse;
+    const rates = await fetchJson<RateResponse>(env.RATES_API_URL);
     if (!isValid(rates)) throw new Error("Unerwartetes Antwortformat der Kursquelle");
 
     cache = { rates, fetchedAt: Date.now() };
@@ -56,7 +50,7 @@ async function fetchRates(): Promise<RateResponse> {
   } catch (err) {
     // Bei einem Ausfall der Kursquelle lieber einen leicht veralteten
     // Kurs verwenden als den Bestellvorgang komplett zu blockieren.
-    if (cache) {
+    if (cache && Date.now() - cache.fetchedAt <= env.RATES_MAX_AGE_MS) {
       logger.warn({ err }, "Kursabfrage fehlgeschlagen – verwende zwischengespeicherten Kurs");
       return cache.rates;
     }

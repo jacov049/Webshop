@@ -104,3 +104,12 @@ CREATE TABLE IF NOT EXISTS site_settings (
     value TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Immutable server-owned shipping facts. NULL means an unverifiable legacy snapshot;
+-- never backfill historical prices/names from mutable current product records.
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_name TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS unit_price_eur NUMERIC(10,2);
+-- Existing BTC invoices become payable in whole satoshis; round upward by <1 sat.
+UPDATE orders SET amount_crypto=ceil(amount_crypto*100000000)/100000000
+ WHERE payment_method='BTC' AND status IN ('pending','confirming')
+   AND amount_crypto<>ceil(amount_crypto*100000000)/100000000;

@@ -129,15 +129,17 @@ in den eigenen Access-Logs gespeichert.
 
 ## Bestelldaten
 
-Name, Lieferadresse und Bestellinhalt werden vor dem Absenden direkt in deinem Browser
+Name, Lieferadresse und persönliche Notizen werden vor dem Absenden direkt in deinem Browser
 mit einem PGP-Schlüssel verschlüsselt. Der Server speichert nur den verschlüsselten Blob
 und besitzt nicht den privaten PGP-Schlüssel.
 
 Die operative Speicherdauer wird über DATA_RETENTION_DAYS gesteuert. Der technische
 Standardwert von 14 Tagen ist nur für Entwicklung/Demo gedacht und muss vor produktivem
 Warenverkauf mit steuer- und handelsrechtlichen Aufbewahrungspflichten abgestimmt werden.
+Offene und noch nicht versendete bezahlte Bestellungen bleiben bis zur Klärung erhalten.
+Abgelaufene oder stornierte Bestellungen werden erst nach Bestandsfreigabe gelöscht.
 
-Zur Lagerverwaltung wird zusätzlich gespeichert, welche Artikel in welcher Menge zu einer
+Zur Lagerverwaltung wird zusätzlich gespeichert, welche Artikel mit Namen, Einzelpreis und Menge zu einer
 Bestellung gehören. Diese Angaben enthalten für sich genommen keinen Namen oder keine
 Lieferadresse.
 

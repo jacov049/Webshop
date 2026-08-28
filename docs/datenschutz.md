@@ -25,13 +25,17 @@
 
 ## Automatische Löschung
 
-Der Backend-Löschjob entfernt kundenbezogene Datensätze nach
+Der Backend-Löschjob entfernt abgeschlossene kundenbezogene Datensätze nach
 `DATA_RETENTION_DAYS`. Der Standardwert von 14 Tagen ist nur für Entwicklung,
 Demo und Tests gedacht. Er ist **kein geeigneter pauschaler Produktionswert**
 für einen echten Warenverkauf.
 
 Maßgeblich ist derzeit `created_at`. Eine Änderung von
 `DATA_RETENTION_DAYS` wirkt dadurch auch auf bereits vorhandene Datensätze.
+Offene und bezahlte, noch nicht versendete Bestellungen bleiben bis zur Klärung
+erhalten. Stornierte/abgelaufene Bestellungen werden erst nach erfolgreicher
+Bestandsfreigabe gelöscht. Bereits im Admin gespeicherte Texte werden durch die
+Migration nicht überschrieben und müssen diese Ausnahme ebenfalls erläutern.
 
 Nicht gelöscht werden Artikelstammdaten und die im Admin-Panel gepflegten
 Website-Texte, da es sich dabei nicht um Kundendaten handelt.

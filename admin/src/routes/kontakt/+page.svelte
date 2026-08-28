@@ -2,21 +2,26 @@
 	import { onMount } from 'svelte';
 	import { apiGet } from '$lib/api';
 	import ContactRow from '$lib/components/ContactRow.svelte';
-	import type { AdminContactRequest } from '$lib/types';
+	import type { Page, AdminContactRequest } from '$lib/types';
 
 	let requests = $state<AdminContactRequest[]>([]);
 	let loading = $state(true);
 
-	async function load() {
+	let nextCursor = $state<string | null>(null);
+  let loadError = $state('');
+  async function load(more = false) {
+    loadError = "";
 		loading = true;
 		try {
-			requests = await apiGet<AdminContactRequest[]>('/admin/contact');
-		} finally {
+			const page = await apiGet<Page<AdminContactRequest>>(`/admin/contact?${more && nextCursor ? 'cursor='+encodeURIComponent(nextCursor) : ''}`);
+      requests = more ? [...requests, ...page.items] : page.items;
+      nextCursor = page.nextCursor;
+		} catch (error) { loadError = error instanceof Error ? error.message : "Laden fehlgeschlagen"; } finally {
 			loading = false;
 		}
 	}
 
-	onMount(load);
+	onMount(() => { void load(); });
 </script>
 
 <h1>Kontaktanfragen</h1>
@@ -32,3 +37,6 @@
 		{/each}
 	</div>
 {/if}
+
+{#if loadError}<p class="error-text">{loadError}</p>{/if}
+{#if nextCursor}<button onclick={() => load(true)} disabled={loading}>Weitere laden</button>{/if}

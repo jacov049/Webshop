@@ -1,3 +1,4 @@
+import { repairReleasedStock } from "./stock.ts";
 import { pool } from "../db/pool.ts";
 import { env } from "../lib/env.ts";
 import { logger } from "../lib/logger.ts";
@@ -25,8 +26,11 @@ export interface RetentionResult {
 export async function runRetentionCleanup(): Promise<RetentionResult> {
   const days = env.DATA_RETENTION_DAYS;
 
+  await repairReleasedStock();
+  // Unresolved orders must be reconciled, not silently deleted with reserved inventory.
   const orders = await pool.query(
-    `DELETE FROM orders WHERE created_at < now() - ($1 * INTERVAL '1 day')`,
+    `DELETE FROM orders WHERE created_at < now() - ($1 * INTERVAL '1 day')
+       AND (status='shipped' OR (status IN ('expired','cancelled') AND stock_released))`,
     [days]
   );
 

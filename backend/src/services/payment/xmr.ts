@@ -1,3 +1,4 @@
+import { fetchJson } from "../../lib/http.ts";
 import { env } from "../../lib/env.ts";
 
 /**
@@ -9,15 +10,11 @@ import { env } from "../../lib/env.ts";
 let rpcId = 0;
 
 async function rpcCall<T>(method: string, params?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(env.XMR_WALLET_RPC_URL, {
+  const body = await fetchJson<{ result?: T; error?: { message: string } }>(env.XMR_WALLET_RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: (rpcId++).toString(), method, params })
   });
-  if (!res.ok) {
-    throw new Error(`monero-wallet-rpc HTTP ${res.status} bei Methode ${method}`);
-  }
-  const body = (await res.json()) as { result?: T; error?: { message: string } };
   if (body.error) {
     throw new Error(`monero-wallet-rpc Fehler bei ${method}: ${body.error.message}`);
   }
@@ -74,8 +71,14 @@ export async function getXmrPayments(addressIndex: number): Promise<XmrPayment[]
     .filter((t) => t.subaddr_index.major === 0 && t.subaddr_index.minor === addressIndex)
     .map((t) => ({
       txid: t.txid,
-      amountAtomic: BigInt(t.amount),
+      amountAtomic: toAtomic(t.amount),
       confirmations: Math.max(0, Number(t.confirmations ?? 0))
     }))
     .filter((t) => t.amountAtomic > 0n && Number.isSafeInteger(t.confirmations));
+}
+
+// JSON numbers beyond 2^53 have already lost precision: fail closed.
+function toAtomic(amount: number | string): bigint {
+  if (typeof amount === "number" && !Number.isSafeInteger(amount)) throw new Error("Unsicherer XMR-Betrag");
+  return BigInt(amount);
 }

@@ -28,6 +28,8 @@ const schema = z.object({
   XMR_WALLET_RPC_URL: z.string().default("http://127.0.0.1:18083/json_rpc"),
   XMR_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(10),
   PAYMENT_POLL_INTERVAL_MS: z.coerce.number().int().min(1_000).default(30_000),
+  EXTERNAL_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(60000).default(8000),
+  RATES_MAX_AGE_MS: z.coerce.number().int().min(60000).default(300000),
   PAYMENT_WINDOW_MINUTES: z.coerce.number().int().positive().default(30),
   DATA_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
   PGP_PUBLIC_KEY_FINGERPRINT: z.string().optional()

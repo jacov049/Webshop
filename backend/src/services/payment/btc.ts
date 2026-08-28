@@ -2,6 +2,7 @@ import { HDKey } from "@scure/bip32";
 import { bech32 } from "@scure/base";
 import { sha256 } from "@noble/hashes/sha2";
 import { ripemd160 } from "@noble/hashes/legacy";
+import { fetchJson, fetchText } from "../../lib/http.ts";
 import { env } from "../../lib/env.ts";
 
 /**
@@ -61,12 +62,7 @@ export interface BtcPayment {
  */
 export async function getBtcPayments(address: string): Promise<BtcPayment[]> {
   const base = env.BTC_ESPLORA_URL.replace(/\/$/, "");
-  const txsRes = await fetch(`${base}/address/${address}/txs`);
-  if (!txsRes.ok) {
-    throw new Error(`Esplora-TX-Abfrage fehlgeschlagen: HTTP ${txsRes.status}`);
-  }
-
-  const txs = (await txsRes.json()) as EsploraTx[];
+  const txs = await fetchJson<EsploraTx[]>(`${base}/address/${address}/txs`);
   if (txs.length === 0) return [];
 
   const confirmedTxs = txs.filter(
@@ -74,11 +70,7 @@ export async function getBtcPayments(address: string): Promise<BtcPayment[]> {
   );
   let tipHeight: number | null = null;
   if (confirmedTxs.length > 0) {
-    const tipRes = await fetch(`${base}/blocks/tip/height`);
-    if (!tipRes.ok) {
-      throw new Error(`Esplora-Tip-Abfrage fehlgeschlagen: HTTP ${tipRes.status}`);
-    }
-    tipHeight = Number(await tipRes.text());
+    tipHeight = Number(await fetchText(`${base}/blocks/tip/height`));
     if (!Number.isSafeInteger(tipHeight) || tipHeight < 0) {
       throw new Error("Esplora lieferte eine ungültige Blockhöhe.");
     }

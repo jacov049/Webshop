@@ -74,8 +74,8 @@ adminProductsRouter.get(
 
 adminProductsRouter.post(
   "/",
-  uploadJson,
   requireCsrf,
+  uploadJson,
   asyncHandler(async (req, res) => {
     const parsed = productSchema.safeParse(req.body);
     if (!parsed.success) {

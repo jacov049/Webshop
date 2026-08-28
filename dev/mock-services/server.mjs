@@ -16,6 +16,8 @@
  */
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
+// Tests can select isolated ports without touching a developer's running mock instance.
+const portBase = Number(process.env.MOCK_PORT_BASE ?? 9100);
 
 // ---------------------------------------------------------------- Zustand
 const state = {
@@ -54,40 +56,36 @@ createServer(async (req, res) => {
 
   let m = path.match(/^\/address\/([^/]+)$/);
   if (m) {
-    const p = state.btc.get(m[1]);
-    const confirmed = p && p.blockHeight !== null;
+    const payments = state.btc.get(m[1]) ?? [];
+    const confirmed = payments.filter(p => p.blockHeight !== null);
+    const pending = payments.filter(p => p.blockHeight === null);
     return json(res, {
       address: m[1],
       chain_stats: {
-        funded_txo_sum: confirmed ? p.sats : 0,
+        funded_txo_sum: confirmed.reduce((sum, p) => sum + p.sats, 0),
         spent_txo_sum: 0,
-        tx_count: confirmed ? 1 : 0
+        tx_count: confirmed.length
       },
       mempool_stats: {
-        funded_txo_sum: p && !confirmed ? p.sats : 0,
+        funded_txo_sum: pending.reduce((sum, p) => sum + p.sats, 0),
         spent_txo_sum: 0,
-        tx_count: p && !confirmed ? 1 : 0
+        tx_count: pending.length
       }
     });
   }
 
   m = path.match(/^\/address\/([^/]+)\/txs$/);
   if (m) {
-    const p = state.btc.get(m[1]);
-    if (!p) return json(res, []);
-    return json(res, [
-      {
-        txid: p.txid,
-        status:
-          p.blockHeight === null
-            ? { confirmed: false }
-            : { confirmed: true, block_height: p.blockHeight }
-      }
-    ]);
+    const payments = state.btc.get(m[1]) ?? [];
+    return json(res, payments.map(p => ({
+      txid: p.txid,
+      vout: [{ value: p.sats, scriptpubkey_address: m[1] }],
+      status: p.blockHeight === null ? { confirmed: false } : { confirmed: true, block_height: p.blockHeight }
+    })));
   }
 
   json(res, { error: 'not found' }, 404);
-}).listen(9101, () => console.log('  Esplora-Mock        :9101'));
+}).listen(portBase + 1, '127.0.0.1', () => console.log('Esplora ready'));
 
 // --------------------------------------------------- monero-wallet-rpc
 createServer(async (req, res) => {
@@ -125,11 +123,11 @@ createServer(async (req, res) => {
   if (method === 'get_height') return reply({ height: state.tipHeight });
 
   json(res, { jsonrpc: '2.0', id, error: { code: -32601, message: `Unbekannte Methode ${method}` } });
-}).listen(9102, () => console.log('  monero-wallet-rpc   :9102'));
+}).listen(portBase + 2, '127.0.0.1', () => console.log('XMR ready'));
 
 // ------------------------------------------------------------- Kursquelle
-createServer((_req, res) => json(res, state.rates)).listen(9103, () =>
-  console.log('  Kursquelle          :9103')
+createServer((_req, res) => json(res, state.rates)).listen(portBase + 3, '127.0.0.1', () =>
+  console.log('Rates ready')
 );
 
 // ------------------------------------------------------------ Steuer-API
@@ -140,11 +138,11 @@ createServer(async (req, res) => {
   if (req.method === 'GET' && path === '/state') {
     return json(res, {
       tipHeight: state.tipHeight,
-      btc: [...state.btc.entries()].map(([address, p]) => ({
+      btc: [...state.btc.entries()].flatMap(([address, payments]) => payments.map(p => ({
         address,
         sats: p.sats,
         confirmations: confirmationsFor(p.blockHeight)
-      })),
+      }))),
       xmrSubaddresses: state.xmrSubaddresses.length,
       xmrTransfers: state.xmrTransfers.map((t) => ({
         subaddrIndex: t.subaddrIndex,
@@ -159,7 +157,9 @@ createServer(async (req, res) => {
   // Zahlungseingang simulieren. confirmed=false -> Mempool/Pool.
   if (path === '/btc/pay') {
     const blockHeight = body.confirmed === false ? null : state.tipHeight;
-    state.btc.set(body.address, { sats: Math.round(body.sats), blockHeight, txid: txid() });
+    const payments = state.btc.get(body.address) ?? [];
+    payments.push({ sats: Math.round(body.sats), blockHeight, txid: txid() });
+    state.btc.set(body.address, payments);
     return json(res, { ok: true, confirmations: confirmationsFor(blockHeight) });
   }
 
@@ -183,7 +183,7 @@ createServer(async (req, res) => {
   // Ausstehende Transaktionen in den nächsten Block aufnehmen.
   if (path === '/confirm-pending') {
     state.tipHeight += 1;
-    for (const p of state.btc.values()) if (p.blockHeight === null) p.blockHeight = state.tipHeight;
+    for (const p of [...state.btc.values()].flat()) if (p.blockHeight === null) p.blockHeight = state.tipHeight;
     for (const t of state.xmrTransfers) if (t.blockHeight === null) t.blockHeight = state.tipHeight;
     return json(res, { ok: true, tipHeight: state.tipHeight });
   }
@@ -197,6 +197,6 @@ createServer(async (req, res) => {
   }
 
   json(res, { error: 'not found' }, 404);
-}).listen(9100, () => console.log('  Steuer-API          :9100'));
+}).listen(portBase, '127.0.0.1', () => console.log('Control ready'));
 
 console.log('Mock-Dienste laufen.');

@@ -12,7 +12,9 @@ export interface AdminProduct {
 
 export type OrderStatus = 'pending' | 'confirming' | 'paid' | 'expired' | 'shipped' | 'cancelled';
 
+export interface Page<T> { items: T[]; nextCursor: string | null }
 export interface AdminOrder {
+  items: { product_id: string | null; name: string | null; unit_price_eur: string | null; quantity: number }[];
 	id: string;
 	order_token: string;
 	encrypted_payload: string; // weiterhin PGP-verschlüsselt, siehe decrypt/pgp.svelte.ts

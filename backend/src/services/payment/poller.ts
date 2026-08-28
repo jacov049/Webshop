@@ -1,7 +1,8 @@
+import { decimalToUnits, toleratedTarget, summarizePayments } from "./amounts.ts";
 import { pool } from "../../db/pool.ts";
 import { logger } from "../../lib/logger.ts";
 import { env } from "../../lib/env.ts";
-import { releaseStockForOrder } from "../stock.ts";
+import { changeOrderStatus, repairReleasedStock } from "../stock.ts";
 import { getBtcPayments } from "./btc.ts";
 import { getXmrPayments } from "./xmr.ts";
 
@@ -15,66 +16,9 @@ interface OpenOrder {
   expires_at: Date;
 }
 
-interface PaymentSlice {
-  amount: bigint;
-  confirmations: number;
-}
-
-const UNDERPAYMENT_NUMERATOR = 995n;
-const UNDERPAYMENT_DENOMINATOR = 1000n;
 const EXPIRY_GRACE_MS = Math.max(60_000, env.PAYMENT_POLL_INTERVAL_MS * 2);
 
-function decimalToUnits(value: string, decimals: number): bigint {
-  const normalized = value.trim();
-  if (!/^\d+(?:\.\d+)?$/.test(normalized)) {
-    throw new Error(`Ungültiger Kryptobetrag: ${value}`);
-  }
-  const [wholeRaw, fraction = ""] = normalized.split(".");
-  const whole = wholeRaw ?? "0";
-  const padded = fraction.padEnd(decimals, "0");
-  if (padded.length > decimals && /[1-9]/.test(padded.slice(decimals))) {
-    throw new Error(`Kryptobetrag hat mehr als ${decimals} relevante Nachkommastellen.`);
-  }
-  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(padded.slice(0, decimals) || "0");
-}
-
-function toleratedTarget(amount: bigint): bigint {
-  return (
-    amount * UNDERPAYMENT_NUMERATOR + (UNDERPAYMENT_DENOMINATOR - 1n)
-  ) / UNDERPAYMENT_DENOMINATOR;
-}
-
-function summarizePayments(payments: PaymentSlice[], target: bigint, requiredConfirmations: number) {
-  const totalReceived = payments.reduce((sum, payment) => sum + payment.amount, 0n);
-  const confirmedReceived = payments
-    .filter((payment) => payment.confirmations >= requiredConfirmations)
-    .reduce((sum, payment) => sum + payment.amount, 0n);
-
-  let confirmations = 0;
-  if (payments.length > 0) {
-    const depths = [...new Set(payments.map((payment) => payment.confirmations))].sort((a, b) => b - a);
-    for (const depth of depths) {
-      const amountAtDepth = payments
-        .filter((payment) => payment.confirmations >= depth)
-        .reduce((sum, payment) => sum + payment.amount, 0n);
-      if (amountAtDepth >= target) {
-        confirmations = depth;
-        break;
-      }
-    }
-    if (confirmations === 0 && totalReceived < target) {
-      confirmations = Math.max(...payments.map((payment) => payment.confirmations));
-    }
-  }
-
-  return {
-    anyReceived: totalReceived > 0n,
-    confirmedEnough: confirmedReceived >= target,
-    confirmations
-  };
-}
-
-async function pollOrder(order: OpenOrder) {
+export async function pollOrder(order: OpenOrder) {
   let summary;
 
   if (order.payment_method === "BTC") {
@@ -116,31 +60,9 @@ async function pollOrder(order: OpenOrder) {
   );
 }
 
-async function expireOverdueOrders() {
-  const graceSeconds = Math.ceil(EXPIRY_GRACE_MS / 1000);
-  const { rows } = await pool.query<{ id: string }>(
-    `UPDATE orders
-        SET status = 'expired', updated_at = now()
-      WHERE status = 'pending'
-        AND expires_at + ($1::int * interval '1 second') < now()
-        AND last_payment_check_at IS NOT NULL
-        AND last_payment_check_at >= expires_at
-        AND last_payment_check_at >= now() - ($1::int * interval '1 second')
-      RETURNING id`,
-    [graceSeconds]
-  );
-
-  for (const order of rows) {
-    try {
-      await releaseStockForOrder(order.id);
-    } catch (err) {
-      logger.error({ err, orderId: order.id }, "Lagerbestand-Rückbuchung fehlgeschlagen");
-    }
-  }
-
-  if (rows.length > 0) {
-    logger.info({ expiredOrders: rows.length }, "Abgelaufene Bestellungen zurückgesetzt");
-  }
+export async function expireOverdueOrders() {
+  const { rows } = await pool.query<{ id: string }>("SELECT id FROM orders WHERE status='pending' AND expires_at < now()");
+  for (const order of rows) await changeOrderStatus(order.id, "expired", Math.ceil(EXPIRY_GRACE_MS / 1000));
 }
 
 async function pollOpenOrders() {
@@ -160,7 +82,8 @@ async function pollOpenOrders() {
   }
 }
 
-async function runPollCycle() {
+export async function runPollCycle() {
+  await repairReleasedStock();
   await pollOpenOrders();
   await expireOverdueOrders();
 }

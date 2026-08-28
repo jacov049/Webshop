@@ -96,11 +96,18 @@ Vor dem Live-Betrieb zwingend:
 
 `.github/workflows/ci.yml` prüft:
 
-- Backend: `npm ci`, `npm run typecheck`, `npm run build`
+- Backend: `npm ci`, `npm test` (mit PostgreSQL), `npm run typecheck`, `npm run build`
 - Frontend: `npm ci`, `npm run check`, `npm run build`
 - Admin: `npm ci`, `npm run check`, `npm run build`
 
-Der Security-Hardening-Branch wurde damit erfolgreich durch alle drei Jobs gebaut und typgeprüft.
+Die CI läuft auf Pull Requests sowie Pushes nach `main` und `codex/**`.
+Die vollständige Review-/Testübergabe für Claude steht in
+[`docs/CLAUDE_TESTPLAN.md`](docs/CLAUDE_TESTPLAN.md). Dort sind auch Migration,
+API-Änderungen und noch manuell zu prüfende Produktionsbedingungen dokumentiert.
+
+Lokal nutzt `npm test` im Backend eingebettetes PostgreSQL (PGlite). Für echte
+Mehrverbindungs-/Sperrtests `TEST_DATABASE_URL` auf eine separate PostgreSQL-Testdatenbank
+setzen. Die Tests erstellen und entfernen ausschließlich ein eigenes zufälliges Schema.
 
 ## Sicherheits-Checkliste
 
@@ -122,6 +129,12 @@ Im Code umgesetzt sind unter anderem:
 - Expiry nur nach einem erfolgreichen und frischen Payment-Check
 
 ## Aufbewahrungsfrist — rechtlicher Hinweis
+
+Der operative Löschlauf entfernt nur versendete oder vollständig
+stornierte/abgelaufene Bestellungen. Offene und bezahlte, noch nicht versendete
+Vorgänge bleiben bis zur Klärung erhalten; dadurch wird keine reservierte Ware
+durch eine Löschung der Bestellpositionen verloren. Diese Ausnahme muss auch in
+bereits im Admin gepflegten Datenschutztexten berücksichtigt werden.
 
 Der technische Standardwert `DATA_RETENTION_DAYS=14` ist nur für Entwicklung/Demo gedacht. Für einen produktiven Warenverkauf müssen gesetzlich aufzubewahrende Unterlagen separat berücksichtigt werden.
 

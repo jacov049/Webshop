@@ -2,23 +2,28 @@
 	import { onMount } from 'svelte';
 	import { apiGet } from '$lib/api';
 	import OrderRow from '$lib/components/OrderRow.svelte';
-	import type { AdminOrder, OrderStatus } from '$lib/types';
+	import type { Page, AdminOrder, OrderStatus } from '$lib/types';
 
 	let orders = $state<AdminOrder[]>([]);
 	let loading = $state(true);
 	let filter = $state<OrderStatus | ''>('');
 
-	async function load() {
+	let nextCursor = $state<string | null>(null);
+  let loadError = $state('');
+  async function load(more = false) {
+    loadError = "";
 		loading = true;
 		try {
-			const query = filter ? `?status=${filter}` : '';
-			orders = await apiGet<AdminOrder[]>(`/admin/orders${query}`);
-		} finally {
+			const query = filter ? `?status=${filter}` : "?";
+			const page = await apiGet<Page<AdminOrder>>(`/admin/orders${query}${more && nextCursor ? '&cursor='+encodeURIComponent(nextCursor) : ''}`);
+      orders = more ? [...orders, ...page.items] : page.items;
+      nextCursor = page.nextCursor;
+		} catch (error) { loadError = error instanceof Error ? error.message : "Laden fehlgeschlagen"; } finally {
 			loading = false;
 		}
 	}
 
-	onMount(load);
+	onMount(() => { void load(); });
 </script>
 
 <h1>Bestellungen</h1>
@@ -26,7 +31,7 @@
 <div class="row filter">
 	<label>
 		Status
-		<select bind:value={filter} onchange={load}>
+		<select bind:value={filter} onchange={() => load()}>
 			<option value="">Alle</option>
 			<option value="pending">pending</option>
 			<option value="confirming">confirming</option>
@@ -49,6 +54,9 @@
 		{/each}
 	</div>
 {/if}
+
+{#if loadError}<p class="error-text">{loadError}</p>{/if}
+{#if nextCursor}<button onclick={() => load(true)} disabled={loading}>Weitere laden</button>{/if}
 
 <style>
 	.filter {
